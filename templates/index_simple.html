@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
     <title>MCC AI Agent | Поиск по 2GIS</title>
     <style>
         /* Импорт современного шрифта */
@@ -761,34 +761,25 @@
             color: #d0ffd8;
         }
 
-        /* Кнопка обратной связи */
-        .feedback-button {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            z-index: 100;
-            width: auto;
-            padding: 15px 30px;
-            border-radius: 60px;
-            background: rgba(30, 100, 50, 0.8);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(100, 255, 140, 0.4);
+        /* Кнопка обратной связи в футере */
+        .footer-feedback-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 50px;
+            padding: 12px 30px;
             color: white;
             font-size: 16px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+            margin-bottom: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
-        .feedback-button:hover {
-            background: rgba(40, 120, 60, 0.9);
-            transform: translateY(-3px);
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
-            border-color: rgba(120, 255, 150, 0.6);
+        .footer-feedback-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 35px rgba(102, 126, 234, 0.4);
         }
 
         /* Футер */
@@ -797,6 +788,302 @@
             margin-top: 25px;
             color: rgba(180, 255, 190, 0.4);
             font-size: 13px;
+        }
+
+        /* ===== АДАПТИВНЫЙ ДИЗАЙН ===== */
+
+        /* Для планшетов (до 768px) */
+        @media screen and (max-width: 768px) {
+            body {
+                padding: 15px;
+            }
+
+            .container {
+                width: 100%;
+                padding: 0;
+            }
+
+            .header {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .header p {
+                font-size: 14px;
+            }
+
+            .ios-badge {
+                font-size: 12px;
+                padding: 4px 10px;
+            }
+
+            .main-card {
+                padding: 25px;
+            }
+
+            .liquid-input {
+                padding: 14px 18px;
+                font-size: 14px;
+            }
+
+            .ios-button {
+                padding: 15px 20px;
+                font-size: 16px;
+            }
+
+            .result-card {
+                padding: 25px;
+            }
+
+            .result-header h3 {
+                font-size: 16px;
+            }
+
+            .mcc-code {
+                font-size: 48px;
+            }
+
+            .mcc-name {
+                font-size: 18px;
+            }
+
+            .building-name {
+                font-size: 16px;
+            }
+
+            .org-name {
+                font-size: 20px;
+            }
+
+            .rubric-tag, .service-tag, .match-tag {
+                font-size: 11px;
+                padding: 3px 8px;
+            }
+
+            .footer {
+                font-size: 12px;
+                padding: 15px;
+            }
+        }
+
+        /* Для мобильных телефонов (до 480px) */
+        @media screen and (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+
+            .header {
+                padding: 15px;
+                margin-bottom: 15px;
+            }
+
+            .header h1 {
+                font-size: 20px;
+            }
+
+            .header p {
+                font-size: 12px;
+            }
+
+            .main-card {
+                padding: 20px;
+                margin-bottom: 15px;
+            }
+
+            .form-group {
+                margin-bottom: 15px;
+            }
+
+            .form-group label {
+                font-size: 12px;
+                margin-bottom: 5px;
+            }
+
+            .liquid-input {
+                padding: 12px 15px;
+                font-size: 13px;
+            }
+
+            .ios-button {
+                padding: 12px 15px;
+                font-size: 14px;
+            }
+
+            .result-card {
+                padding: 20px;
+            }
+
+            .result-header {
+                margin-bottom: 15px;
+                padding-bottom: 10px;
+            }
+
+            .result-icon {
+                width: 40px;
+                height: 40px;
+                font-size: 20px;
+            }
+
+            .result-header h3 {
+                font-size: 14px;
+            }
+
+            .building-info {
+                padding: 15px;
+                margin-bottom: 15px;
+            }
+
+            .building-name {
+                font-size: 15px;
+            }
+
+            .building-address {
+                font-size: 12px;
+            }
+
+            .org-name {
+                font-size: 18px;
+                margin-bottom: 8px;
+            }
+
+            .rubrics {
+                gap: 5px;
+                margin-bottom: 10px;
+            }
+
+            .rubric-tag, .service-tag, .match-tag {
+                font-size: 10px;
+                padding: 2px 6px;
+            }
+
+            .services-section {
+                margin-top: 10px;
+            }
+
+            .services-title {
+                font-size: 12px;
+                margin-bottom: 5px;
+            }
+
+            .mcc-code {
+                font-size: 42px;
+            }
+
+            .mcc-name {
+                font-size: 16px;
+            }
+
+            .mcc-description {
+                font-size: 12px;
+            }
+
+            .confidence-label {
+                font-size: 12px;
+            }
+
+            .footer-feedback-btn {
+                padding: 10px 25px;
+                font-size: 14px;
+            }
+
+            .footer {
+                font-size: 10px;
+                padding: 15px 10px;
+                margin-top: 10px;
+            }
+
+            /* Модальное окно для мобильных */
+            .modal-content {
+                padding: 20px;
+                max-height: 90vh;
+            }
+
+            .modal-header h2 {
+                font-size: 18px;
+            }
+
+            .modal-header h2 span {
+                font-size: 20px;
+            }
+
+            .modal-close {
+                width: 35px;
+                height: 35px;
+                font-size: 16px;
+            }
+
+            .hint-icon {
+                width: 18px;
+                height: 18px;
+                font-size: 10px;
+                line-height: 18px;
+            }
+
+            input[type="file"] {
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+
+            input[type="file"]::-webkit-file-upload-button {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+
+            .file-item {
+                font-size: 11px;
+                padding: 4px 10px;
+            }
+        }
+
+        /* Для очень маленьких экранов (до 360px) */
+        @media screen and (max-width: 360px) {
+            .header h1 {
+                font-size: 18px;
+            }
+
+            .mcc-code {
+                font-size: 36px;
+            }
+
+            .mcc-name {
+                font-size: 14px;
+            }
+
+            .ios-button {
+                font-size: 13px;
+                padding: 10px 12px;
+            }
+
+            .modal-content {
+                padding: 15px;
+            }
+
+            .modal-header h2 {
+                font-size: 16px;
+            }
+
+            .modal-close {
+                width: 30px;
+                height: 30px;
+                font-size: 14px;
+            }
+        }
+
+        /* Горизонтальная ориентация на телефонах */
+        @media screen and (max-height: 480px) and (orientation: landscape) {
+            .modal-content {
+                max-height: 85vh;
+            }
+
+            .neural-spinner {
+                width: 60px;
+                height: 60px;
+            }
         }
     </style>
 </head>
@@ -809,11 +1096,6 @@
         <div class="liquid-blob"></div>
         <div class="liquid-blob"></div>
     </div>
-
-    <!-- Кнопка обратной связи -->
-    <button class="feedback-button" id="openFeedbackBtn">
-        <span>💬</span> Обратная связь
-    </button>
 
     <!-- Модальное окно обратной связи -->
     <div class="modal-overlay" id="feedbackModal">
@@ -898,10 +1180,15 @@
 
         <!-- Результат -->
         <div id="resultContainer"></div>
+    </div>
 
-        <!-- Футер -->
-        <div class="footer">
-            🔍 Поиск по 2GIS API • 🤖 Нейросеть определяет MCC-код • 💬 Файлы на Яндекс.Диске
+    <!-- Футер с кнопкой обратной связи -->
+    <div class="footer">
+        <button class="footer-feedback-btn" id="openFeedbackBtn">
+            <span>💬</span> Обратная связь
+        </button>
+        <div style="margin-top: 10px;">
+            🔍 Поиск по 2GIS API • 🤖 Нейросеть определяет MCC-код • 📎 Файлы на Яндекс.Диске
         </div>
     </div>
 
@@ -1291,6 +1578,24 @@
                 searchBtn.click();
             }
         });
+
+        // Адаптивное поведение для модальных окон
+        function adjustModalForMobile() {
+            const isMobile = window.innerWidth <= 480;
+            const modals = document.querySelectorAll('.modal-content');
+
+            modals.forEach(modal => {
+                if (isMobile) {
+                    modal.style.padding = '20px';
+                } else {
+                    modal.style.padding = '35px';
+                }
+            });
+        }
+
+        // Вызываем при загрузке и изменении размера окна
+        window.addEventListener('load', adjustModalForMobile);
+        window.addEventListener('resize', adjustModalForMobile);
 
         // Строим нейросеть при загрузке
         setTimeout(() => {

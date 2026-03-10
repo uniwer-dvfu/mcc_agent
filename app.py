@@ -715,86 +715,51 @@ def upload_to_yandex_disk(file, filename):
 
 def send_feedback_email(name, email, message, files=None):
     """
-    Отправляет обратную связь на почту через Gmail SMTP
+    Отправляет обратную связь на почту через Gmail SMTP (SSL порт 465)
     """
     try:
         logger.info("=" * 50)
-        logger.info("📧 НАЧАЛО ОТПРАВКИ ПИСЬМА (Gmail)")
-        logger.info(f"Отправитель: {YANDEX_EMAIL}")  # теперь это будет Gmail
+        logger.info("📧 НАЧАЛО ОТПРАВКИ ПИСЬМА (Gmail SSL)")
+        logger.info(f"Отправитель: {YANDEX_EMAIL}")
         logger.info(f"Получатель: {FEEDBACK_EMAIL}")
-        logger.info(f"Имя отправителя: {name}")
-        logger.info(f"Email отправителя: {email}")
 
-        # Настройки Gmail
+        # Используем SSL порт 465
         smtp_server = "smtp.gmail.com"
-        smtp_port = 587
+        smtp_port = 465
 
         # Создаем письмо
         msg = MIMEMultipart()
-        msg['From'] = YANDEX_EMAIL  # ваш Gmail
-        msg['To'] = FEEDBACK_EMAIL  # куда отправлять (может быть тот же или Яндекс)
-        msg['Subject'] = f"📬 Обратная связь от {name}"
+        msg['From'] = YANDEX_EMAIL
+        msg['To'] = FEEDBACK_EMAIL
+        msg['Subject'] = f"Обратная связь от {name}"
 
         # Формируем текст письма
         current_time = datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
 
         body = f"""
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <style>
-                body {{ font-family: Arial, sans-serif; }}
-                .header {{ background: #4CAF50; color: white; padding: 20px; border-radius: 10px 10px 0 0; }}
-                .content {{ padding: 20px; background: #f9f9f9; }}
-                .footer {{ padding: 15px; color: #666; font-size: 12px; text-align: center; }}
-                .file-list {{ background: #e3f2fd; padding: 10px; border-radius: 5px; }}
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <h2>📬 Новая обратная связь с MCC AI Agent</h2>
-            </div>
-            <div class="content">
-                <p><strong>👤 Имя:</strong> {name}</p>
-                <p><strong>📧 Email:</strong> {email}</p>
-                <p><strong>🕐 Время:</strong> {current_time}</p>
+Обратная связь с сайта MCC AI Agent
 
-                <h3>💬 Сообщение:</h3>
-                <p style="background: white; padding: 15px; border-radius: 5px;">{message}</p>
-        """
+Время: {current_time}
+Имя: {name}
+Email: {email}
 
-        # Добавляем информацию о файлах
+Сообщение:
+{message}
+"""
+
         if files and len(files) > 0:
-            body += f"""
-                <h3>📎 Прикрепленные файлы:</h3>
-                <div class="file-list">
-                    <ul>
-            """
-            for file in files:
-                body += f'<li><a href="{file["url"]}">{file["filename"]}</a> ({file["size"] // 1024} KB)</li>'
-            body += """
-                    </ul>
-                </div>
-            """
+            body += f"\nПрикреплено файлов: {len(files)}\n"
+            for i, file in enumerate(files, 1):
+                body += f"{i}. {file.get('filename', 'Файл')} - {file.get('url', '#')}\n"
 
-        body += """
-            </div>
-            <div class="footer">
-                Отправлено с сайта MCC AI Agent • {current_time}
-            </div>
-        </body>
-        </html>
-        """.format(current_time=current_time)
+        msg.attach(MIMEText(body, 'plain', 'utf-8'))
 
-        msg.attach(MIMEText(body, 'html', 'utf-8'))
-
-        # Отправляем через Gmail
-        logger.info("📡 Подключаюсь к Gmail SMTP...")
-        server = smtplib.SMTP(smtp_server, smtp_port)
-        server.starttls()
+        # Отправляем через SSL (без starttls)
+        logger.info("📡 Подключаюсь к Gmail SMTP (SSL)...")
+        server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=30)
 
         logger.info("🔑 Выполняю вход...")
-        server.login(YANDEX_EMAIL, YANDEX_PASSWORD)  # YANDEX_EMAIL теперь должен быть Gmail
+        server.login(YANDEX_EMAIL, YANDEX_PASSWORD)
 
         logger.info("📤 Отправляю письмо...")
         server.send_message(msg)
@@ -802,22 +767,11 @@ def send_feedback_email(name, email, message, files=None):
         logger.info("👋 Закрываю соединение...")
         server.quit()
 
-        logger.info("✅ ПИСЬМО УСПЕШНО ОТПРАВЛЕНО через Gmail")
-        logger.info("=" * 50)
-
+        logger.info("✅ ПИСЬМО УСПЕШНО ОТПРАВЛЕНО через Gmail SSL")
         return True, "Письмо успешно отправлено"
 
-    except smtplib.SMTPAuthenticationError as e:
-        logger.error(f"❌ Ошибка аутентификации Gmail: {e}")
-        logger.error("Проверьте пароль приложения и двухфакторную аутентификацию")
-        return False, "Ошибка аутентификации Gmail"
-
-    except smtplib.SMTPException as e:
-        logger.error(f"❌ SMTP ошибка: {e}")
-        return False, f"SMTP ошибка: {e}"
-
     except Exception as e:
-        logger.error(f"❌ Неизвестная ошибка: {e}")
+        logger.error(f"❌ Ошибка отправки email: {e}")
         return False, str(e)
 
 def save_feedback_to_file(name, email, message, files=None):
