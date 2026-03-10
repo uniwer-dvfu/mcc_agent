@@ -12,6 +12,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import logging
 from werkzeug.utils import secure_filename
+import json
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -1029,11 +1030,72 @@ def search_organization():
     })
 
 
+def send_to_google_sheets(name, email, message, files=None):
+    """
+    Отправляет данные обратной связи в Google Sheets
+    """
+    try:
+        # URL вашего Google Apps Script веб-приложения
+        GOOGLE_SHEETS_URL = os.getenv('GOOGLE_SHEETS_URL', '')
+
+        if not GOOGLE_SHEETS_URL:
+            logger.error("❌ GOOGLE_SHEETS_URL не настроен")
+            return False, "Google Sheets URL не настроен"
+
+        # Подготавливаем данные
+        files_info = []
+        if files:
+            for file in files:
+                files_info.append({
+                    'filename': file.get('filename', ''),
+                    'url': file.get('url', ''),
+                    'size': file.get('size', 0)
+                })
+
+        payload = {
+            'name': name,
+            'email': email,
+            'message': message,
+            'files': json.dumps(files_info, ensure_ascii=False),
+            'timestamp': datetime.datetime.now().isoformat()
+        }
+
+        logger.info(f"📤 Отправка в Google Sheets: {name}")
+
+        response = requests.post(
+            GOOGLE_SHEETS_URL,
+            json=payload,
+            timeout=30,
+            headers={'Content-Type': 'application/json'}
+        )
+
+        if response.status_code == 200:
+            result = response.json()
+            if result.get('success'):
+                logger.info("✅ Данные сохранены в Google Sheets")
+                return True, "Данные сохранены в Google Sheets"
+            else:
+                logger.error(f"❌ Ошибка Google Sheets: {result.get('error')}")
+                return False, result.get('error', 'Unknown error')
+        else:
+            logger.error(f"❌ Ошибка HTTP: {response.status_code}")
+            return False, f"HTTP error: {response.status_code}"
+
+    except requests.exceptions.Timeout:
+        logger.error("❌ Таймаут при отправке в Google Sheets")
+        return False, "Timeout"
+    except requests.exceptions.ConnectionError:
+        logger.error("❌ Ошибка соединения с Google Sheets")
+        return False, "Connection error"
+    except Exception as e:
+        logger.error(f"❌ Ошибка: {e}")
+        return False, str(e)
+
+
 @app.route('/send_feedback', methods=['POST'])
 def send_feedback():
     """Обрабатывает отправку обратной связи"""
     try:
-        # Получаем данные из формы
         name = request.form.get('name', '').strip()
         email = request.form.get('email', '').strip()
         message = request.form.get('message', '').strip()
@@ -1056,31 +1118,26 @@ def send_feedback():
         logger.info(f"Сообщение: {message[:50]}...")
         logger.info(f"Файлов: {len(files) if files else 0}")
 
-        # Сохраняем файлы локально
+        # Загружаем файлы на Яндекс.Диск
         saved_files = []
         if files:
             for file in files:
                 if file and file.filename:
-                    # Пробуем загрузить на Яндекс.Диск
                     if YANDEX_DISK_TOKEN:
                         result = upload_to_yandex_disk(file, file.filename)
-                    else:
-                        # Если нет токена, сохраняем локально
-                        result = save_file_locally(file)
+                        if result['success']:
+                            saved_files.append(result)
 
-                    if result['success']:
-                        saved_files.append(result)
-
-        # Сохраняем в файл
+        # Сохраняем в локальный файл
         save_feedback_to_file(name, email, message, saved_files)
 
-        # Отправляем email
-        email_success, email_message = send_feedback_email(name, email, message, saved_files)
+        # Отправляем в Google Sheets
+        sheets_success, sheets_message = send_to_google_sheets(name, email, message, saved_files)
 
-        if email_success:
+        if sheets_success:
             response = {
                 "success": True,
-                "message": "Спасибо! Ваше сообщение отправлено на почту",
+                "message": "Спасибо! Ваше сообщение сохранено в Google Sheets",
                 "files": saved_files
             }
         else:
@@ -1098,7 +1155,6 @@ def send_feedback():
     except Exception as e:
         logger.error(f"❌ Ошибка: {e}")
         return jsonify({"success": False, "error": str(e)})
-
 
 @app.route('/test_email', methods=['GET'])
 def test_email():
