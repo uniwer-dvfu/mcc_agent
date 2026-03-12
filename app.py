@@ -518,59 +518,21 @@ def calculate_similarity(text, keywords):
     return score, matches
 
 
-def search_building(address):
+def search_organization_direct(org_name, address):
     """
-    Этап 1: Поиск здания по адресу
-    Возвращает: (building, error, is_organization)
-    is_organization = True, если найденный объект - уже организация
+    Этап 0: Прямой поиск организации по названию и адресу
     """
     try:
+        # Формируем поисковый запрос: "название, адрес"
+        search_query = f"{org_name}, {address}"
+
         response = requests.get(
             "https://catalog.api.2gis.com/3.0/items",
             params={
-                'q': address,
-                'type': 'building',
+                'q': search_query,
                 'key': DGIS_API_KEY,
-                'fields': 'items.id,items.name,items.address_name,items.purpose_name,items.type'
-            },
-            timeout=10
-        )
-
-        if response.status_code != 200:
-            return None, f"Ошибка API: {response.status_code}", False
-
-        data = response.json()
-
-        if 'result' not in data or 'items' not in data['result'] or not data['result']['items']:
-            return None, "Здание не найдено", False
-
-        # Берём первый результат
-        first_item = data['result']['items'][0]
-        item_type = first_item.get('type', '')
-
-        # Проверяем тип объекта
-        if item_type == 'branch':
-            logger.info(f"✅ Сразу найдена организация: {first_item.get('name')}")
-            return first_item, None, True
-        else:
-            # Это здание, продолжаем как обычно
-            return first_item, None, False
-
-    except Exception as e:
-        return None, str(e), False
-
-
-def find_organization(building_id, org_name):
-    """Этап 2: Поиск организации по названию внутри здания"""
-    try:
-        response = requests.get(
-            "https://catalog.api.2gis.com/3.0/items",
-            params={
-                'q': org_name,
-                'building_id': building_id,  # Ищем ТОЛЬКО внутри этого здания
-                'key': DGIS_API_KEY,
-                'type': 'branch',
-                'fields': 'items.name,items.address_name,items.rubrics,items.attribute_groups,items.external_content'
+                'type': 'branch',  # Ищем только организации
+                'fields': 'items.id,items.name,items.address_name,items.rubrics,items.attribute_groups,items.purpose_name'
             },
             timeout=10
         )
@@ -581,32 +543,88 @@ def find_organization(building_id, org_name):
         data = response.json()
 
         if 'result' not in data or 'items' not in data['result'] or not data['result']['items']:
-            return None, "Организация не найдена в этом здании"
+            return None, "Организация не найдена"
 
-        organizations = data['result']['items']
+        # Берём первый результат
+        organization = data['result']['items'][0]
+        logger.info(f"✅ Найдена организация прямым поиском: {organization.get('name')}")
+
+        return organization, None
+
+    except Exception as e:
+        return None, str(e)
+
+
+def find_organizations_in_building(building_id, org_name):
+    """
+    Находит ВСЕ организации в здании и выбирает наиболее релевантную
+    """
+    try:
+        response = requests.get(
+            "https://catalog.api.2gis.com/3.0/items",
+            params={
+                'building_id': building_id,
+                'key': DGIS_API_KEY,
+                'type': 'branch',
+                'fields': 'items.name,items.address_name,items.rubrics,items.attribute_groups',
+                'limit': 50  # Увеличиваем лимит для больших ТЦ
+            },
+            timeout=10
+        )
+
+        if response.status_code != 200:
+            return None, f"Ошибка API: {response.status_code}"
+
+        data = response.json()
+
+        if 'result' not in data or 'items' not in data['result']:
+            return None, "Нет организаций в здании"
+
+        organizations = data['result'].get('items', [])
+
+        if not organizations:
+            return None, "В здании нет организаций"
+
+        # Ищем наиболее релевантную по названию
         best_match = None
         best_score = 0
+        search_words = set(org_name.lower().split())
 
         for org in organizations:
             org_name_lower = org.get('name', '').lower()
-            search_name_lower = org_name.lower()
 
-            if search_name_lower in org_name_lower:
-                score = 10
-            elif any(word in org_name_lower for word in search_name_lower.split()):
-                score = 5
+            # Считаем релевантность
+            score = 0
+
+            # Точное совпадение
+            if org_name_lower == org_name.lower():
+                score = 100
+            # Название содержит искомое
+            elif org_name.lower() in org_name_lower:
+                score = 50
+            # Искомое содержит название
+            elif org_name_lower in org_name.lower():
+                score = 40
             else:
-                score = 0
+                # Считаем совпадения слов
+                org_words = set(org_name_lower.split())
+                common_words = search_words & org_words
+                score = len(common_words) * 10
 
             if score > best_score:
                 best_score = score
                 best_match = org
 
-        return best_match, None
+        if best_match:
+            logger.info(f"✅ Найдена организация в здании: {best_match.get('name')} (релевантность: {best_score})")
+            return best_match, None
+        else:
+            # Если ничего не нашли, возвращаем первую
+            logger.warning(f"⚠️ Не найдено совпадений, возвращаю первую организацию: {organizations[0].get('name')}")
+            return organizations[0], None
 
     except Exception as e:
         return None, str(e)
-
 
 def get_rubrics_and_services(org):
     """
@@ -727,37 +745,48 @@ def search_organization():
     if not org_name or not address:
         return jsonify({"success": False, "error": "Заполните все поля"})
 
-    # Этап 1: Поиск здания (или сразу организации)
-    item, error, is_organization = search_building(address)
-    if error:
-        return jsonify({"success": False, "error": f"Ошибка поиска: {error}"})
+    logger.info(f"🔍 Поиск: '{org_name}' по адресу '{address}'")
 
-    # Если сразу нашли организацию
-    if is_organization:
-        organization = item
+    # ЭТАП 0: Прямой поиск организации
+    organization, error = search_organization_direct(org_name, address)
+
+    if organization:
+        # Нашли организацию напрямую
         building_info = {
             "name": organization.get('address_name', ''),
             "address": organization.get('address_name', ''),
             "purpose": organization.get('purpose_name', '')
         }
-        logger.info(f"✅ Организация найдена сразу: {organization.get('name')}")
+        logger.info(f"✅ Организация найдена прямым поиском")
     else:
-        # Это здание, нужно искать организацию внутри
-        building_id = item.get('id')
+        # ЭТАП 1: Поиск здания по адресу
+        logger.info(f"🏢 Прямой поиск не дал результатов, ищу здание по адресу")
+        item, error, item_type = search_building(address)
+
+        if error:
+            return jsonify({"success": False, "error": f"Ошибка поиска: {error}"})
+
         building_info = {
             "name": item.get('name', ''),
             "address": item.get('address_name', ''),
             "purpose": item.get('purpose_name', '')
         }
 
-        # Этап 2: Поиск организации внутри здания
-        organization, error = find_organization(building_id, org_name)
-        if error:
-            return jsonify({
-                "success": False,
-                "error": f"Организация не найдена в здании",
-                "building": building_info
-            })
+        # ЭТАП 2: Если нашли здание, ищем организации внутри
+        if item_type == 'building':
+            logger.info(f"🏢 Найдено здание: {building_info['name']}, ищу организацию внутри")
+            organization, error = find_organizations_in_building(item.get('id'), org_name)
+
+            if error or not organization:
+                return jsonify({
+                    "success": False,
+                    "error": f"Организация '{org_name}' не найдена в здании",
+                    "building": building_info
+                })
+        else:
+            # Если нашли организацию как здание (неправильная классификация)
+            logger.info(f"⚠️ Найден объект типа {item_type}, использую как организацию")
+            organization = item
 
     # Получаем рубрики и услуги
     rubrics, services = get_rubrics_and_services(organization)
@@ -775,11 +804,11 @@ def search_organization():
         "organization": {
             "name": organization.get('name', ''),
             "rubrics": rubrics,
-            "services": services[:15]  # Ограничиваем 15 услугами
+            "services": services[:15]
         },
-        "mcc": mcc_result,
-        "direct_match": is_organization  # Опционально: флаг, что нашли сразу
+        "mcc": mcc_result
     })
+
 
 @app.route('/send_feedback', methods=['POST'])
 def send_feedback():
