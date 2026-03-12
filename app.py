@@ -519,7 +519,11 @@ def calculate_similarity(text, keywords):
 
 
 def search_building(address):
-    """Этап 1: Поиск здания по адресу"""
+    """
+    Этап 1: Поиск здания по адресу
+    Возвращает: (building, error, is_organization)
+    is_organization = True, если найденный объект - уже организация
+    """
     try:
         response = requests.get(
             "https://catalog.api.2gis.com/3.0/items",
@@ -527,24 +531,33 @@ def search_building(address):
                 'q': address,
                 'type': 'building',
                 'key': DGIS_API_KEY,
-                'fields': 'items.id,items.name,items.address_name,items.purpose_name'
+                'fields': 'items.id,items.name,items.address_name,items.purpose_name,items.type'
             },
             timeout=10
         )
 
         if response.status_code != 200:
-            return None, f"Ошибка API: {response.status_code}"
+            return None, f"Ошибка API: {response.status_code}", False
 
         data = response.json()
 
         if 'result' not in data or 'items' not in data['result'] or not data['result']['items']:
-            return None, "Здание не найдено"
+            return None, "Здание не найдено", False
 
-        building = data['result']['items'][0]
-        return building, None
+        # Берём первый результат
+        first_item = data['result']['items'][0]
+        item_type = first_item.get('type', '')
+
+        # Проверяем тип объекта
+        if item_type == 'branch':
+            logger.info(f"✅ Сразу найдена организация: {first_item.get('name')}")
+            return first_item, None, True
+        else:
+            # Это здание, продолжаем как обычно
+            return first_item, None, False
 
     except Exception as e:
-        return None, str(e)
+        return None, str(e), False
 
 
 def find_organization(building_id, org_name):
