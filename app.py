@@ -567,7 +567,7 @@ def find_organization(building_id, org_name):
             "https://catalog.api.2gis.com/3.0/items",
             params={
                 'q': org_name,
-                'building_id': building_id,
+                'building_id': building_id,  # Ищем ТОЛЬКО внутри этого здания
                 'key': DGIS_API_KEY,
                 'type': 'branch',
                 'fields': 'items.name,items.address_name,items.rubrics,items.attribute_groups,items.external_content'
@@ -581,7 +581,7 @@ def find_organization(building_id, org_name):
         data = response.json()
 
         if 'result' not in data or 'items' not in data['result'] or not data['result']['items']:
-            return None, "Организация не найдена"
+            return None, "Организация не найдена в этом здании"
 
         organizations = data['result']['items']
         best_match = None
