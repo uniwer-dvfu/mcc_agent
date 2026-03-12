@@ -557,7 +557,7 @@ def find_organization(building_id, org_name):
                 'building_id': building_id,
                 'key': DGIS_API_KEY,
                 'type': 'branch',
-                'fields': 'items.name,items.address_name,items.rubrics,items.external_content'
+                'fields': 'items.name,items.address_name,items.rubrics,items.attribute_groups,items.external_content'
             },
             timeout=10
         )
@@ -596,7 +596,10 @@ def find_organization(building_id, org_name):
 
 
 def get_rubrics_and_services(org):
-    """Извлекает рубрики и услуги из организации"""
+    """
+    Извлекает рубрики и услуги из организации.
+    Услуги собираются из всех групп атрибутов (attribute_groups).
+    """
     rubrics = []
     services = []
 
@@ -604,12 +607,34 @@ def get_rubrics_and_services(org):
         for rubric in org['rubrics']:
             if 'name' in rubric:
                 rubrics.append(rubric['name'])
+    if 'attribute_groups' in org and org['attribute_groups']:
+        all_services = []
+        for group in org['attribute_groups']:
+            # Название группы услуг (например, "Диагностика", "Анализы", "Услуги")
+            group_name = group.get('name', '')
+            # Извлекаем все атрибуты (услуги) внутри группы
+            if 'attributes' in group:
+                for attr in group['attributes']:
+                    service_name = attr.get('name')
+                    if service_name:
+                        # Добавляем услугу в общий список
+                        all_services.append(service_name)
 
+        # Убираем дубликаты, сохраняя порядок
+        seen = set()
+        unique_services = []
+        for service in all_services:
+            if service not in seen:
+                seen.add(service)
+                unique_services.append(service)
+
+        # Ограничиваем количество услуг (первые 15)
+        services = unique_services[:15]
     if 'external_content' in org:
         for content in org['external_content']:
             if content.get('type') == 'services' and 'items' in content:
                 for service in content['items']:
-                    if 'name' in service:
+                    if 'name' in service and service['name'] not in services:
                         services.append(service['name'])
 
     return rubrics, services
