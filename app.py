@@ -727,45 +727,59 @@ def search_organization():
     if not org_name or not address:
         return jsonify({"success": False, "error": "Заполните все поля"})
 
-    building, error = search_building(address)
+    # Этап 1: Поиск здания (или сразу организации)
+    item, error, is_organization = search_building(address)
     if error:
-        return jsonify({"success": False, "error": f"Ошибка поиска здания: {error}"})
+        return jsonify({"success": False, "error": f"Ошибка поиска: {error}"})
 
-    building_id = building.get('id')
-    building_name = building.get('name', '')
-    building_address = building.get('address_name', '')
-    building_purpose = building.get('purpose_name', '')
+    # Если сразу нашли организацию
+    if is_organization:
+        organization = item
+        building_info = {
+            "name": organization.get('address_name', ''),
+            "address": organization.get('address_name', ''),
+            "purpose": organization.get('purpose_name', '')
+        }
+        logger.info(f"✅ Организация найдена сразу: {organization.get('name')}")
+    else:
+        # Это здание, нужно искать организацию внутри
+        building_id = item.get('id')
+        building_info = {
+            "name": item.get('name', ''),
+            "address": item.get('address_name', ''),
+            "purpose": item.get('purpose_name', '')
+        }
 
-    organization, error = find_organization(building_id, org_name)
-    if error:
-        return jsonify({
-            "success": False,
-            "error": f"Организация не найдена в здании",
-            "building": {
-                "name": building_name,
-                "address": building_address,
-                "purpose": building_purpose
-            }
-        })
+        # Этап 2: Поиск организации внутри здания
+        organization, error = find_organization(building_id, org_name)
+        if error:
+            return jsonify({
+                "success": False,
+                "error": f"Организация не найдена в здании",
+                "building": building_info
+            })
 
+    # Получаем рубрики и услуги
     rubrics, services = get_rubrics_and_services(organization)
-    mcc_result = predict_mcc_from_org(organization, building_name, building_address)
+
+    # Определяем MCC-код
+    mcc_result = predict_mcc_from_org(
+        organization,
+        building_info.get('name', ''),
+        building_info.get('address', '')
+    )
 
     return jsonify({
         "success": True,
-        "building": {
-            "name": building_name,
-            "address": building_address,
-            "purpose": building_purpose
-        },
+        "building": building_info,
         "organization": {
             "name": organization.get('name', ''),
             "rubrics": rubrics,
-            "services": services[:8]
+            "services": services[:15]  # Ограничиваем 15 услугами
         },
-        "mcc": mcc_result
+        "mcc": mcc_result,
+        "direct_match": is_organization  # Опционально: флаг, что нашли сразу
     })
-
 
 @app.route('/send_feedback', methods=['POST'])
 def send_feedback():
