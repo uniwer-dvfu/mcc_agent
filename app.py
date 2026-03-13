@@ -505,15 +505,20 @@ def calculate_similarity(text, keywords):
     matches = []
 
     for keyword in keywords:
+        # Точное вхождение слова (самое важное)
         if re.search(r'\b' + re.escape(keyword) + r'\b', text_lower):
-            score += 10
-            matches.append(keyword)
+            # Если ключевое слово - общее (доставка), даём меньший вес
+            common_words = ['доставка', 'оплата', 'карта', 'наличный', 'qr']
+            if keyword in common_words:
+                score += 5
+                matches.append(keyword + "*")
+            else:
+                score += 10
+                matches.append(keyword)
+        # Слово как часть другого слова
         elif keyword in text_lower:
-            score += 5
-            matches.append(keyword + "*")
-        elif len(keyword) > 4 and keyword[:-2] in text_lower:
-            score += 3
-            matches.append(keyword[:-2] + "~")
+            score += 2
+            matches.append(keyword + "~")
 
     return score, matches
 
@@ -672,12 +677,17 @@ def get_rubrics_and_services(org):
 
 
 def predict_mcc_from_org(organization, building_name, address):
-    """Определяет MCC-код по информации об организации"""
-    org_name = organization.get('name', '')
+    org_name = organization.get('name', '').lower()
     rubrics, services = get_rubrics_and_services(organization)
 
-    # Объединяем всю информацию для поиска
-    search_text = f"{org_name} {building_name} {address} {' '.join(rubrics)} {' '.join(services)}".lower()
+    # Формируем текст с ВЕСАМИ
+    # Название организации и рубрики - важнее (повторяем их несколько раз)
+    weighted_text = (org_name + ' ') * 5  # Название x5
+    weighted_text += (' '.join(rubrics) + ' ') * 3  # Рубрики x3
+    weighted_text += building_name + ' ' + address + ' '  # Адрес x1
+    weighted_text += (' '.join(services) + ' ') * 1  # Услуги x1 (наименьший вес)
+
+    search_text = weighted_text.lower()
 
     best_match = None
     best_score = 0
@@ -693,7 +703,6 @@ def predict_mcc_from_org(organization, building_name, address):
 
     # Если нашли совпадение с достаточным баллом
     if best_match and best_score >= 5:
-        # Нормализуем уверенность (макс 98%)
         confidence = min(98, 50 + best_score * 2)
         return {
             "code": best_match["code"],
@@ -704,15 +713,13 @@ def predict_mcc_from_org(organization, building_name, address):
             "matches": best_matches[:3]
         }
     else:
-        # Если ничего не нашли, возвращаем предположения
-        suggestions = get_suggestions(search_text)
         return {
             "code": "????",
             "name": "Специфичная ниша",
             "confidence": 0,
             "found": False,
             "message": "Не удалось определить MCC-код для данной организации",
-            "suggestions": suggestions[:3]
+            "suggestions": get_suggestions(search_text)
         }
 
 def get_suggestions(text):
