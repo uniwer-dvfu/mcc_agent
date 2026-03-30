@@ -676,43 +676,59 @@ def get_rubrics_and_services(org):
     return rubrics, services
 
 
+def calculate_relevance(text, keywords):
+    """
+    Рассчитывает релевантность текста набору ключевых слов
+    Возвращает: (score, matches, match_count)
+    """
+    text_lower = text.lower()
+    score = 0
+    matches = []
+    match_count = 0
+
+    for keyword in keywords:
+        # Точное совпадение целого слова (самое важное)
+        if re.search(r'\b' + re.escape(keyword) + r'\b', text_lower):
+            score += 10
+            matches.append(keyword)
+            match_count += 1
+        # Слово как часть другого слова (менее важно)
+        elif keyword in text_lower:
+            score += 3
+            matches.append(keyword + "~")
+            match_count += 1
+
+    return score, matches, match_count
+
+
 def predict_mcc_from_org(organization, building_name, address):
     org_name = organization.get('name', '').lower()
     rubrics, services = get_rubrics_and_services(organization)
 
-    # Формируем текст с ВЕСАМИ
-    # Название организации и рубрики - важнее (повторяем их несколько раз)
-    weighted_text = (org_name + ' ') * 5  # Название x5
-    weighted_text += (' '.join(rubrics) + ' ') * 3  # Рубрики x3
-    weighted_text += building_name + ' ' + address + ' '  # Адрес x1
-    weighted_text += (' '.join(services) + ' ') * 1  # Услуги x1 (наименьший вес)
+    # Формируем текст для поиска
+    search_text = f"{org_name} {building_name} {address} {' '.join(rubrics)} {' '.join(services)}".lower()
 
-    search_text = weighted_text.lower()
-
-    best_match = None
-    best_score = 0
-    best_matches = []
+    # Словарь для хранения всех кандидатов
+    candidates = []
 
     # Проходим по всей базе MCC_DATABASE
     for item in MCC_DATABASE:
-        score, matches = calculate_similarity(search_text, item["keywords"])
-        if score > best_score:
-            best_score = score
-            best_match = item
-            best_matches = matches
+        score, matches, match_count = calculate_relevance(search_text, item["keywords"])
 
-    # Если нашли совпадение с достаточным баллом
-    if best_match and best_score >= 5:
-        confidence = min(98, 50 + best_score * 2)
-        return {
-            "code": best_match["code"],
-            "name": best_match["name"],
-            "description": best_match["description"],
-            "confidence": confidence,
-            "found": True,
-            "matches": best_matches[:3]
-        }
-    else:
+        # Если есть хотя бы одно совпадение
+        if match_count > 0:
+            candidates.append({
+                "code": item["code"],
+                "name": item["name"],
+                "description": item["description"],
+                "score": score,
+                "match_count": match_count,
+                "matches": matches[:3],
+                "item": item
+            })
+
+    # Если нет ни одного кандидата
+    if not candidates:
         return {
             "code": "????",
             "name": "Специфичная ниша",
@@ -721,6 +737,26 @@ def predict_mcc_from_org(organization, building_name, address):
             "message": "Не удалось определить MCC-код для данной организации",
             "suggestions": get_suggestions(search_text)
         }
+
+    candidates.sort(key=lambda x: (x["match_count"], x["score"]), reverse=True)
+
+    # Берём лучшего кандидата
+    best = candidates[0]
+
+    # Рассчитываем уверенность
+    # База: 50% + (количество совпадений * 5%) + (score / 2)
+    confidence = min(98, 50 + best["match_count"] * 5 + best["score"] // 2)
+
+    return {
+        "code": best["code"],
+        "name": best["name"],
+        "description": best["description"],
+        "confidence": confidence,
+        "found": True,
+        "matches": best["matches"],
+        "match_count": best["match_count"],
+        "total_candidates": len(candidates)  # для отладки
+    }
 
 def get_suggestions(text):
     """Возвращает подсказки на основе частичных совпадений"""
