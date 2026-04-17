@@ -409,7 +409,7 @@ def upload_to_yandex_disk(file, filename, folder_path=None):
         return {"success": False, "error": str(e)}
 
 
-def send_to_google_sheets(name, email, message, files=None):
+def send_to_google_sheets(name, email, message, files=None, status="Новое"):
     """
     Отправляет данные обратной связи в Google Sheets
     """
@@ -422,7 +422,8 @@ def send_to_google_sheets(name, email, message, files=None):
         payload = {
             'name': name,
             'email': email,
-            'message': message
+            'message': message,
+            'status': status  # Добавляем статус
         }
 
         # Если есть файлы, добавляем информацию в message
@@ -432,10 +433,8 @@ def send_to_google_sheets(name, email, message, files=None):
                 files_info += f"- {file.get('filename', 'Файл')}: {file.get('url', '#')}\n"
             payload['message'] = message + files_info
 
-        logger.info(f"📤 Отправка в Google Sheets: {name}")
-        logger.info(f"URL: {GOOGLE_SHEETS_URL}")
+        logger.info(f"📤 Отправка в Google Sheets: {name} (статус: {status})")
 
-        # Отправляем POST запрос
         response = requests.post(
             GOOGLE_SHEETS_URL,
             json=payload,
@@ -443,35 +442,16 @@ def send_to_google_sheets(name, email, message, files=None):
             headers={'Content-Type': 'application/json'}
         )
 
-        logger.info(f"📊 Статус ответа: {response.status_code}")
-
         if response.status_code == 200:
-            try:
-                result = response.json()
-                if result.get('success'):
-                    logger.info("✅ Данные сохранены в Google Sheets")
-                    return True, "Сохранено в Google Sheets"
-                else:
-                    logger.error(f"❌ Ошибка от скрипта: {result.get('error')}")
-                    return False, result.get('error', 'Unknown error')
-            except:
-                logger.info("✅ Данные сохранены (ответ не JSON, но статус 200)")
-                return True, "Сохранено"
+            logger.info(f"✅ Данные сохранены в Google Sheets")
+            return True, "Сохранено"
         else:
             logger.error(f"❌ Ошибка HTTP: {response.status_code}")
-            logger.error(f"Ответ: {response.text[:200]}")
             return False, f"HTTP ошибка: {response.status_code}"
 
-    except requests.exceptions.Timeout:
-        logger.error("❌ Таймаут при отправке в Google Sheets")
-        return False, "Превышено время ожидания"
-    except requests.exceptions.ConnectionError:
-        logger.error("❌ Ошибка соединения с Google Sheets")
-        return False, "Ошибка соединения"
     except Exception as e:
-        logger.error(f"❌ Неизвестная ошибка: {e}")
+        logger.error(f"❌ Ошибка: {e}")
         return False, str(e)
-
 
 def save_feedback_to_file(name, email, message, files=None):
     """Сохраняет обратную связь в файл"""
@@ -765,6 +745,105 @@ def get_suggestions(text):
     return suggestions[:3]
 
 
+@app.route('/report_wrong_mcc', methods=['POST'])
+def report_wrong_mcc():
+    """Обрабатывает жалобу на неверный MCC-код"""
+    try:
+        data = request.get_json()
+
+        org_name = data.get('org_name', '').strip()
+        address = data.get('address', '').strip()
+        wrong_mcc = data.get('wrong_mcc', '').strip()
+        wrong_mcc_name = data.get('wrong_mcc_name', '').strip()
+        building_name = data.get('building_name', '').strip()
+        building_address = data.get('building_address', '').strip()
+        rubrics = data.get('rubrics', [])
+        services = data.get('services', [])
+
+        # Валидация
+        if not org_name or not address or not wrong_mcc:
+            return jsonify({"success": False, "error": "Недостаточно данных для отправки"})
+
+        # Формируем сообщение
+        message = f"""
+🚫 НЕВЕРНЫЙ MCC-КОД
+
+📍 Торговая точка: {org_name}
+🏠 Адрес: {address}
+🏢 Здание: {building_name}
+📌 Адрес здания: {building_address}
+
+📋 Рубрики: {', '.join(rubrics) if rubrics else 'не указаны'}
+🛠️ Услуги: {', '.join(services[:10]) if services else 'не указаны'}
+
+❌ Ошибочный MCC: {wrong_mcc} - {wrong_mcc_name}
+"""
+
+        # Отправляем в Google Sheets с пометкой "Неверный МСС"
+        sheets_success, sheets_message = send_to_google_sheets(
+            name=org_name,
+            email="report@system",
+            message=message,
+            files=None,
+            status="Неверный МСС"
+        )
+
+        # Сохраняем локально
+        save_report_to_file(org_name, address, wrong_mcc, wrong_mcc_name, rubrics, services)
+
+        return jsonify({
+            "success": True,
+            "message": "Спасибо за обратную связь! Ошибка зафиксирована, мы улучшим алгоритм."
+        })
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка при отправке жалобы: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+
+def save_report_to_file(org_name, address, wrong_mcc, wrong_mcc_name, rubrics, services):
+    """Сохраняет жалобу на неверный МСС в файл"""
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    report_entry = f"""
+[{timestamp}] ⚠️ НЕВЕРНЫЙ МСС
+📍 Торговая точка: {org_name}
+🏠 Адрес: {address}
+❌ Ошибочный MCC: {wrong_mcc} - {wrong_mcc_name}
+📋 Рубрики: {', '.join(rubrics) if rubrics else 'не указаны'}
+🛠️ Услуги: {', '.join(services[:5]) if services else 'не указаны'}
+{'-' * 60}
+"""
+    try:
+        with open('wrong_mcc_reports.txt', 'a', encoding='utf-8') as f:
+            f.write(report_entry)
+        logger.info(f"✅ Жалоба на неверный МСС сохранена")
+    except Exception as e:
+        logger.error(f"❌ Ошибка сохранения: {e}")
+@app.route('/test_yandex_folder', methods=['GET'])
+def test_yandex_folder():
+    """Тест создания папки на Яндекс.Диске"""
+    logger.info("=" * 50)
+    logger.info("🧪 ТЕСТ СОЗДАНИЯ ПАПКИ НА ДИСКЕ")
+
+    # Проверяем корневую папку
+    root_result = ensure_yandex_folder()
+
+    # Создаем датированную папку
+    dated_folder = create_dated_folder()
+
+    response_data = {
+        "root_folder_created": root_result,
+        "dated_folder_created": dated_folder is not None,
+        "dated_folder_path": dated_folder,
+        "root_folder": YANDEX_DISK_FOLDER,
+        "token_present": bool(YANDEX_DISK_TOKEN)
+    }
+
+    logger.info(f"Результат: {response_data}")
+    logger.info("=" * 50)
+
+    return jsonify(response_data)
+
 
 @app.route('/')
 def index():
@@ -879,94 +958,40 @@ def send_feedback():
         logger.info(f"Сообщение: {message[:50]}...")
         logger.info(f"Файлов: {len(files) if files else 0}")
 
-        # Убеждаемся, что корневая папка существует
-        ensure_yandex_folder()
-
         # Загружаем файлы на Яндекс.Диск
         saved_files = []
-        info_file_url = None
-        dated_folder = None
-
         if files and len(files) > 0:
-            # Создаем папку с датой при загрузке файлов
             dated_folder = create_dated_folder()
-
             if dated_folder:
-                # Загружаем все файлы в созданную папку
                 for file in files:
                     if file and file.filename:
                         result = upload_to_yandex_disk(file, file.filename, dated_folder)
                         if result['success']:
                             saved_files.append(result)
 
-                # Создаем info-файл с данными формы
-                if saved_files:
-                    info_file_url = create_info_file(dated_folder, name, email, message, saved_files)
-                    if info_file_url:
-                        logger.info(f"✅ Info-файл создан: {info_file_url}")
-            else:
-                # Если не удалось создать папку, загружаем в корень
-                for file in files:
-                    if file and file.filename:
-                        result = upload_to_yandex_disk(file, file.filename, YANDEX_DISK_FOLDER)
-                        if result['success']:
-                            saved_files.append(result)
-
-        # Сохраняем локально (для резерва)
+        # Сохраняем локально
         save_feedback_to_file(name, email, message, saved_files)
 
-        # Отправляем в Google Sheets
-        sheets_success, sheets_message = send_to_google_sheets(name, email, message, saved_files)
+        # Отправляем в Google Sheets со статусом "Обратная связь"
+        sheets_success, sheets_message = send_to_google_sheets(name, email, message, saved_files, "Обратная связь")
 
-        # Формируем ответ пользователю
         response_message = "Спасибо! "
         if saved_files:
             response_message += f"Загружено файлов: {len(saved_files)}. "
+        if sheets_success:
+            response_message += "Ваше сообщение отправлено."
+        else:
+            response_message += "Сообщение сохранено локально."
 
-        response = {
+        return jsonify({
             "success": True,
             "message": response_message,
             "files": saved_files
-        }
-
-        if info_file_url:
-            response["info_file"] = info_file_url
-
-        logger.info(f"Ответ: {response}")
-        logger.info("=" * 50)
-
-        return jsonify(response)
+        })
 
     except Exception as e:
         logger.error(f"❌ Ошибка: {e}")
         return jsonify({"success": False, "error": str(e)})
-
-
-@app.route('/test_yandex_folder', methods=['GET'])
-def test_yandex_folder():
-    """Тест создания папки на Яндекс.Диске"""
-    logger.info("=" * 50)
-    logger.info("🧪 ТЕСТ СОЗДАНИЯ ПАПКИ НА ДИСКЕ")
-
-    # Проверяем корневую папку
-    root_result = ensure_yandex_folder()
-
-    # Создаем датированную папку
-    dated_folder = create_dated_folder()
-
-    response_data = {
-        "root_folder_created": root_result,
-        "dated_folder_created": dated_folder is not None,
-        "dated_folder_path": dated_folder,
-        "root_folder": YANDEX_DISK_FOLDER,
-        "token_present": bool(YANDEX_DISK_TOKEN)
-    }
-
-    logger.info(f"Результат: {response_data}")
-    logger.info("=" * 50)
-
-    return jsonify(response_data)
-
 
 @app.route('/test_google_sheets', methods=['GET'])
 def test_google_sheets():
