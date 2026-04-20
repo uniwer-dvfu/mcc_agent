@@ -1076,3 +1076,11 @@ if __name__ == '__main__':
             print("❌ Ошибка подключения к Яндекс.Диску")
 
     app.run(debug=True, port=5000)
+
+@app.route('/')
+def index():
+    """Главная страница"""
+    # Передаём ключи в шаблон для использования в JavaScript
+    return render_template('index_simple.html',
+                         DGIS_API_KEY=os.getenv('DGIS_API_KEY', ''),
+                         DGIS_MAP_KEY=os.getenv('DGIS_MAP_KEY', ''))
