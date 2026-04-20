@@ -409,7 +409,7 @@ def upload_to_yandex_disk(file, filename, folder_path=None):
         return {"success": False, "error": str(e)}
 
 
-def send_to_google_sheets(name, email, message, files=None):
+def send_to_google_sheets(name, email, message, files=None, status="Новое"):
     """
     Отправляет данные обратной связи в Google Sheets
     """
@@ -422,7 +422,8 @@ def send_to_google_sheets(name, email, message, files=None):
         payload = {
             'name': name,
             'email': email,
-            'message': message
+            'message': message,
+            'status': status  # Добавляем статус
         }
 
         # Если есть файлы, добавляем информацию в message
@@ -432,10 +433,8 @@ def send_to_google_sheets(name, email, message, files=None):
                 files_info += f"- {file.get('filename', 'Файл')}: {file.get('url', '#')}\n"
             payload['message'] = message + files_info
 
-        logger.info(f"📤 Отправка в Google Sheets: {name}")
-        logger.info(f"URL: {GOOGLE_SHEETS_URL}")
+        logger.info(f"📤 Отправка в Google Sheets: {name} (статус: {status})")
 
-        # Отправляем POST запрос
         response = requests.post(
             GOOGLE_SHEETS_URL,
             json=payload,
@@ -443,35 +442,16 @@ def send_to_google_sheets(name, email, message, files=None):
             headers={'Content-Type': 'application/json'}
         )
 
-        logger.info(f"📊 Статус ответа: {response.status_code}")
-
         if response.status_code == 200:
-            try:
-                result = response.json()
-                if result.get('success'):
-                    logger.info("✅ Данные сохранены в Google Sheets")
-                    return True, "Сохранено в Google Sheets"
-                else:
-                    logger.error(f"❌ Ошибка от скрипта: {result.get('error')}")
-                    return False, result.get('error', 'Unknown error')
-            except:
-                logger.info("✅ Данные сохранены (ответ не JSON, но статус 200)")
-                return True, "Сохранено"
+            logger.info(f"✅ Данные сохранены в Google Sheets")
+            return True, "Сохранено"
         else:
             logger.error(f"❌ Ошибка HTTP: {response.status_code}")
-            logger.error(f"Ответ: {response.text[:200]}")
             return False, f"HTTP ошибка: {response.status_code}"
 
-    except requests.exceptions.Timeout:
-        logger.error("❌ Таймаут при отправке в Google Sheets")
-        return False, "Превышено время ожидания"
-    except requests.exceptions.ConnectionError:
-        logger.error("❌ Ошибка соединения с Google Sheets")
-        return False, "Ошибка соединения"
     except Exception as e:
-        logger.error(f"❌ Неизвестная ошибка: {e}")
+        logger.error(f"❌ Ошибка: {e}")
         return False, str(e)
-
 
 def save_feedback_to_file(name, email, message, files=None):
     """Сохраняет обратную связь в файл"""
@@ -505,72 +485,39 @@ def calculate_similarity(text, keywords):
     matches = []
 
     for keyword in keywords:
+        # Точное вхождение слова (самое важное)
         if re.search(r'\b' + re.escape(keyword) + r'\b', text_lower):
-            score += 10
-            matches.append(keyword)
+            # Если ключевое слово - общее (доставка), даём меньший вес
+            common_words = ['доставка', 'оплата', 'карта', 'наличный', 'qr']
+            if keyword in common_words:
+                score += 5
+                matches.append(keyword + "*")
+            else:
+                score += 10
+                matches.append(keyword)
+        # Слово как часть другого слова
         elif keyword in text_lower:
-            score += 5
-            matches.append(keyword + "*")
-        elif len(keyword) > 4 and keyword[:-2] in text_lower:
-            score += 3
-            matches.append(keyword[:-2] + "~")
+            score += 2
+            matches.append(keyword + "~")
 
     return score, matches
 
 
-def search_building(address):
+def search_organization_direct(org_name, address):
     """
-    Этап 1: Поиск здания по адресу
-    Возвращает: (building, error, is_organization)
-    is_organization = True, если найденный объект - уже организация
+    Этап 0: Прямой поиск организации по названию и адресу
     """
     try:
+        # Формируем поисковый запрос: "название, адрес"
+        search_query = f"{org_name}, {address}"
+
         response = requests.get(
             "https://catalog.api.2gis.com/3.0/items",
             params={
-                'q': address,
-                'type': 'building',
+                'q': search_query,
                 'key': DGIS_API_KEY,
-                'fields': 'items.id,items.name,items.address_name,items.purpose_name,items.type'
-            },
-            timeout=10
-        )
-
-        if response.status_code != 200:
-            return None, f"Ошибка API: {response.status_code}", False
-
-        data = response.json()
-
-        if 'result' not in data or 'items' not in data['result'] or not data['result']['items']:
-            return None, "Здание не найдено", False
-
-        # Берём первый результат
-        first_item = data['result']['items'][0]
-        item_type = first_item.get('type', '')
-
-        # Проверяем тип объекта
-        if item_type == 'branch':
-            logger.info(f"✅ Сразу найдена организация: {first_item.get('name')}")
-            return first_item, None, True
-        else:
-            # Это здание, продолжаем как обычно
-            return first_item, None, False
-
-    except Exception as e:
-        return None, str(e), False
-
-
-def find_organization(building_id, org_name):
-    """Этап 2: Поиск организации по названию внутри здания"""
-    try:
-        response = requests.get(
-            "https://catalog.api.2gis.com/3.0/items",
-            params={
-                'q': org_name,
-                'building_id': building_id,  # Ищем ТОЛЬКО внутри этого здания
-                'key': DGIS_API_KEY,
-                'type': 'branch',
-                'fields': 'items.name,items.address_name,items.rubrics,items.attribute_groups,items.external_content'
+                'type': 'branch',  # Ищем только организации
+                'fields': 'items.id,items.name,items.address_name,items.rubrics,items.attribute_groups,items.purpose_name'
             },
             timeout=10
         )
@@ -581,32 +528,88 @@ def find_organization(building_id, org_name):
         data = response.json()
 
         if 'result' not in data or 'items' not in data['result'] or not data['result']['items']:
-            return None, "Организация не найдена в этом здании"
+            return None, "Организация не найдена"
 
-        organizations = data['result']['items']
+        # Берём первый результат
+        organization = data['result']['items'][0]
+        logger.info(f"✅ Найдена организация прямым поиском: {organization.get('name')}")
+
+        return organization, None
+
+    except Exception as e:
+        return None, str(e)
+
+
+def find_organizations_in_building(building_id, org_name):
+    """
+    Находит ВСЕ организации в здании и выбирает наиболее релевантную
+    """
+    try:
+        response = requests.get(
+            "https://catalog.api.2gis.com/3.0/items",
+            params={
+                'building_id': building_id,
+                'key': DGIS_API_KEY,
+                'type': 'branch',
+                'fields': 'items.name,items.address_name,items.rubrics,items.attribute_groups',
+                'limit': 50  # Увеличиваем лимит для больших ТЦ
+            },
+            timeout=10
+        )
+
+        if response.status_code != 200:
+            return None, f"Ошибка API: {response.status_code}"
+
+        data = response.json()
+
+        if 'result' not in data or 'items' not in data['result']:
+            return None, "Нет организаций в здании"
+
+        organizations = data['result'].get('items', [])
+
+        if not organizations:
+            return None, "В здании нет организаций"
+
+        # Ищем наиболее релевантную по названию
         best_match = None
         best_score = 0
+        search_words = set(org_name.lower().split())
 
         for org in organizations:
             org_name_lower = org.get('name', '').lower()
-            search_name_lower = org_name.lower()
 
-            if search_name_lower in org_name_lower:
-                score = 10
-            elif any(word in org_name_lower for word in search_name_lower.split()):
-                score = 5
+            # Считаем релевантность
+            score = 0
+
+            # Точное совпадение
+            if org_name_lower == org_name.lower():
+                score = 100
+            # Название содержит искомое
+            elif org_name.lower() in org_name_lower:
+                score = 50
+            # Искомое содержит название
+            elif org_name_lower in org_name.lower():
+                score = 40
             else:
-                score = 0
+                # Считаем совпадения слов
+                org_words = set(org_name_lower.split())
+                common_words = search_words & org_words
+                score = len(common_words) * 10
 
             if score > best_score:
                 best_score = score
                 best_match = org
 
-        return best_match, None
+        if best_match:
+            logger.info(f"✅ Найдена организация в здании: {best_match.get('name')} (релевантность: {best_score})")
+            return best_match, None
+        else:
+            # Если ничего не нашли, возвращаем первую
+            logger.warning(f"⚠️ Не найдено совпадений, возвращаю первую организацию: {organizations[0].get('name')}")
+            return organizations[0], None
 
     except Exception as e:
         return None, str(e)
-
 
 def get_rubrics_and_services(org):
     """
@@ -653,49 +656,87 @@ def get_rubrics_and_services(org):
     return rubrics, services
 
 
+def calculate_relevance(text, keywords):
+    """
+    Рассчитывает релевантность текста набору ключевых слов
+    Возвращает: (score, matches, match_count)
+    """
+    text_lower = text.lower()
+    score = 0
+    matches = []
+    match_count = 0
+
+    for keyword in keywords:
+        # Точное совпадение целого слова (самое важное)
+        if re.search(r'\b' + re.escape(keyword) + r'\b', text_lower):
+            score += 10
+            matches.append(keyword)
+            match_count += 1
+        # Слово как часть другого слова (менее важно)
+        elif keyword in text_lower:
+            score += 3
+            matches.append(keyword + "~")
+            match_count += 1
+
+    return score, matches, match_count
+
+
 def predict_mcc_from_org(organization, building_name, address):
-    """Определяет MCC-код по информации об организации"""
-    org_name = organization.get('name', '')
+    org_name = organization.get('name', '').lower()
     rubrics, services = get_rubrics_and_services(organization)
 
-    # Объединяем всю информацию для поиска
+    # Формируем текст для поиска
     search_text = f"{org_name} {building_name} {address} {' '.join(rubrics)} {' '.join(services)}".lower()
 
-    best_match = None
-    best_score = 0
-    best_matches = []
+    # Словарь для хранения всех кандидатов
+    candidates = []
 
     # Проходим по всей базе MCC_DATABASE
     for item in MCC_DATABASE:
-        score, matches = calculate_similarity(search_text, item["keywords"])
-        if score > best_score:
-            best_score = score
-            best_match = item
-            best_matches = matches
+        score, matches, match_count = calculate_relevance(search_text, item["keywords"])
 
-    # Если нашли совпадение с достаточным баллом
-    if best_match and best_score >= 5:
-        # Нормализуем уверенность (макс 98%)
-        confidence = min(98, 50 + best_score * 2)
-        return {
-            "code": best_match["code"],
-            "name": best_match["name"],
-            "description": best_match["description"],
-            "confidence": confidence,
-            "found": True,
-            "matches": best_matches[:3]
-        }
-    else:
-        # Если ничего не нашли, возвращаем предположения
-        suggestions = get_suggestions(search_text)
+        # Если есть хотя бы одно совпадение
+        if match_count > 0:
+            candidates.append({
+                "code": item["code"],
+                "name": item["name"],
+                "description": item["description"],
+                "score": score,
+                "match_count": match_count,
+                "matches": matches[:3],
+                "item": item
+            })
+
+    # Если нет ни одного кандидата
+    if not candidates:
         return {
             "code": "????",
             "name": "Специфичная ниша",
             "confidence": 0,
             "found": False,
             "message": "Не удалось определить MCC-код для данной организации",
-            "suggestions": suggestions[:3]
+            "suggestions": get_suggestions(search_text)
         }
+
+    candidates.sort(key=lambda x: (x["match_count"], x["score"]), reverse=True)
+
+    # Берём лучшего кандидата
+    best = candidates[0]
+
+    # Рассчитываем уверенность
+    # База: 50% + (количество совпадений * 5%) + (score / 2)
+    confidence = min(98, 50 + best["match_count"] * 5 + best["score"] // 2)
+
+    return {
+        "code": best["code"],
+        "name": best["name"],
+        "description": best["description"],
+        "confidence": confidence,
+        "found": True,
+        "matches": best["matches"],
+        "match_count": best["match_count"],
+        "total_candidates": len(candidates)  # для отладки
+    }
 
 def get_suggestions(text):
     """Возвращает подсказки на основе частичных совпадений"""
@@ -703,6 +744,105 @@ def get_suggestions(text):
     # Здесь будут подсказки из вашей базы
     return suggestions[:3]
 
+
+@app.route('/report_wrong_mcc', methods=['POST'])
+def report_wrong_mcc():
+    """Обрабатывает жалобу на неверный MCC-код"""
+    try:
+        data = request.get_json()
+
+        org_name = data.get('org_name', '').strip()
+        address = data.get('address', '').strip()
+        wrong_mcc = data.get('wrong_mcc', '').strip()
+        wrong_mcc_name = data.get('wrong_mcc_name', '').strip()
+        building_name = data.get('building_name', '').strip()
+        building_address = data.get('building_address', '').strip()
+        rubrics = data.get('rubrics', [])
+        services = data.get('services', [])
+
+        # Валидация
+        if not org_name or not address or not wrong_mcc:
+            return jsonify({"success": False, "error": "Недостаточно данных для отправки"})
+
+        # Формируем сообщение
+        message = f"""
+🚫 НЕВЕРНЫЙ MCC-КОД
+
+📍 Торговая точка: {org_name}
+🏠 Адрес: {address}
+🏢 Здание: {building_name}
+📌 Адрес здания: {building_address}
+
+📋 Рубрики: {', '.join(rubrics) if rubrics else 'не указаны'}
+🛠️ Услуги: {', '.join(services[:10]) if services else 'не указаны'}
+
+❌ Ошибочный MCC: {wrong_mcc} - {wrong_mcc_name}
+"""
+
+        # Отправляем в Google Sheets с пометкой "Неверный МСС"
+        sheets_success, sheets_message = send_to_google_sheets(
+            name=org_name,
+            email="report@system",
+            message=message,
+            files=None,
+            status="Неверный МСС"
+        )
+
+        # Сохраняем локально
+        save_report_to_file(org_name, address, wrong_mcc, wrong_mcc_name, rubrics, services)
+
+        return jsonify({
+            "success": True,
+            "message": "Спасибо за обратную связь! Ошибка зафиксирована, мы улучшим алгоритм."
+        })
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка при отправке жалобы: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+
+def save_report_to_file(org_name, address, wrong_mcc, wrong_mcc_name, rubrics, services):
+    """Сохраняет жалобу на неверный МСС в файл"""
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    report_entry = f"""
+[{timestamp}] ⚠️ НЕВЕРНЫЙ МСС
+📍 Торговая точка: {org_name}
+🏠 Адрес: {address}
+❌ Ошибочный MCC: {wrong_mcc} - {wrong_mcc_name}
+📋 Рубрики: {', '.join(rubrics) if rubrics else 'не указаны'}
+🛠️ Услуги: {', '.join(services[:5]) if services else 'не указаны'}
+{'-' * 60}
+"""
+    try:
+        with open('wrong_mcc_reports.txt', 'a', encoding='utf-8') as f:
+            f.write(report_entry)
+        logger.info(f"✅ Жалоба на неверный МСС сохранена")
+    except Exception as e:
+        logger.error(f"❌ Ошибка сохранения: {e}")
+@app.route('/test_yandex_folder', methods=['GET'])
+def test_yandex_folder():
+    """Тест создания папки на Яндекс.Диске"""
+    logger.info("=" * 50)
+    logger.info("🧪 ТЕСТ СОЗДАНИЯ ПАПКИ НА ДИСКЕ")
+
+    # Проверяем корневую папку
+    root_result = ensure_yandex_folder()
+
+    # Создаем датированную папку
+    dated_folder = create_dated_folder()
+
+    response_data = {
+        "root_folder_created": root_result,
+        "dated_folder_created": dated_folder is not None,
+        "dated_folder_path": dated_folder,
+        "root_folder": YANDEX_DISK_FOLDER,
+        "token_present": bool(YANDEX_DISK_TOKEN)
+    }
+
+    logger.info(f"Результат: {response_data}")
+    logger.info("=" * 50)
+
+    return jsonify(response_data)
 
 
 @app.route('/')
@@ -727,37 +867,48 @@ def search_organization():
     if not org_name or not address:
         return jsonify({"success": False, "error": "Заполните все поля"})
 
-    # Этап 1: Поиск здания (или сразу организации)
-    item, error, is_organization = search_building(address)
-    if error:
-        return jsonify({"success": False, "error": f"Ошибка поиска: {error}"})
+    logger.info(f"🔍 Поиск: '{org_name}' по адресу '{address}'")
 
-    # Если сразу нашли организацию
-    if is_organization:
-        organization = item
+    # ЭТАП 0: Прямой поиск организации
+    organization, error = search_organization_direct(org_name, address)
+
+    if organization:
+        # Нашли организацию напрямую
         building_info = {
             "name": organization.get('address_name', ''),
             "address": organization.get('address_name', ''),
             "purpose": organization.get('purpose_name', '')
         }
-        logger.info(f"✅ Организация найдена сразу: {organization.get('name')}")
+        logger.info(f"✅ Организация найдена прямым поиском")
     else:
-        # Это здание, нужно искать организацию внутри
-        building_id = item.get('id')
+        # ЭТАП 1: Поиск здания по адресу
+        logger.info(f"🏢 Прямой поиск не дал результатов, ищу здание по адресу")
+        item, error, item_type = search_building(address)
+
+        if error:
+            return jsonify({"success": False, "error": f"Ошибка поиска: {error}"})
+
         building_info = {
             "name": item.get('name', ''),
             "address": item.get('address_name', ''),
             "purpose": item.get('purpose_name', '')
         }
 
-        # Этап 2: Поиск организации внутри здания
-        organization, error = find_organization(building_id, org_name)
-        if error:
-            return jsonify({
-                "success": False,
-                "error": f"Организация не найдена в здании",
-                "building": building_info
-            })
+        # ЭТАП 2: Если нашли здание, ищем организации внутри
+        if item_type == 'building':
+            logger.info(f"🏢 Найдено здание: {building_info['name']}, ищу организацию внутри")
+            organization, error = find_organizations_in_building(item.get('id'), org_name)
+
+            if error or not organization:
+                return jsonify({
+                    "success": False,
+                    "error": f"Организация '{org_name}' не найдена в здании",
+                    "building": building_info
+                })
+        else:
+            # Если нашли организацию как здание (неправильная классификация)
+            logger.info(f"⚠️ Найден объект типа {item_type}, использую как организацию")
+            organization = item
 
     # Получаем рубрики и услуги
     rubrics, services = get_rubrics_and_services(organization)
@@ -775,11 +926,11 @@ def search_organization():
         "organization": {
             "name": organization.get('name', ''),
             "rubrics": rubrics,
-            "services": services[:15]  # Ограничиваем 15 услугами
+            "services": services[:15]
         },
-        "mcc": mcc_result,
-        "direct_match": is_organization  # Опционально: флаг, что нашли сразу
+        "mcc": mcc_result
     })
+
 
 @app.route('/send_feedback', methods=['POST'])
 def send_feedback():
@@ -807,94 +958,40 @@ def send_feedback():
         logger.info(f"Сообщение: {message[:50]}...")
         logger.info(f"Файлов: {len(files) if files else 0}")
 
-        # Убеждаемся, что корневая папка существует
-        ensure_yandex_folder()
-
         # Загружаем файлы на Яндекс.Диск
         saved_files = []
-        info_file_url = None
-        dated_folder = None
-
         if files and len(files) > 0:
-            # Создаем папку с датой при загрузке файлов
             dated_folder = create_dated_folder()
-
             if dated_folder:
-                # Загружаем все файлы в созданную папку
                 for file in files:
                     if file and file.filename:
                         result = upload_to_yandex_disk(file, file.filename, dated_folder)
                         if result['success']:
                             saved_files.append(result)
 
-                # Создаем info-файл с данными формы
-                if saved_files:
-                    info_file_url = create_info_file(dated_folder, name, email, message, saved_files)
-                    if info_file_url:
-                        logger.info(f"✅ Info-файл создан: {info_file_url}")
-            else:
-                # Если не удалось создать папку, загружаем в корень
-                for file in files:
-                    if file and file.filename:
-                        result = upload_to_yandex_disk(file, file.filename, YANDEX_DISK_FOLDER)
-                        if result['success']:
-                            saved_files.append(result)
-
-        # Сохраняем локально (для резерва)
+        # Сохраняем локально
         save_feedback_to_file(name, email, message, saved_files)
 
-        # Отправляем в Google Sheets
-        sheets_success, sheets_message = send_to_google_sheets(name, email, message, saved_files)
+        # Отправляем в Google Sheets со статусом "Обратная связь"
+        sheets_success, sheets_message = send_to_google_sheets(name, email, message, saved_files, "Обратная связь")
 
-        # Формируем ответ пользователю
         response_message = "Спасибо! "
         if saved_files:
             response_message += f"Загружено файлов: {len(saved_files)}. "
+        if sheets_success:
+            response_message += "Ваше сообщение отправлено."
+        else:
+            response_message += "Сообщение сохранено локально."
 
-        response = {
+        return jsonify({
             "success": True,
             "message": response_message,
             "files": saved_files
-        }
-
-        if info_file_url:
-            response["info_file"] = info_file_url
-
-        logger.info(f"Ответ: {response}")
-        logger.info("=" * 50)
-
-        return jsonify(response)
+        })
 
     except Exception as e:
         logger.error(f"❌ Ошибка: {e}")
         return jsonify({"success": False, "error": str(e)})
-
-
-@app.route('/test_yandex_folder', methods=['GET'])
-def test_yandex_folder():
-    """Тест создания папки на Яндекс.Диске"""
-    logger.info("=" * 50)
-    logger.info("🧪 ТЕСТ СОЗДАНИЯ ПАПКИ НА ДИСКЕ")
-
-    # Проверяем корневую папку
-    root_result = ensure_yandex_folder()
-
-    # Создаем датированную папку
-    dated_folder = create_dated_folder()
-
-    response_data = {
-        "root_folder_created": root_result,
-        "dated_folder_created": dated_folder is not None,
-        "dated_folder_path": dated_folder,
-        "root_folder": YANDEX_DISK_FOLDER,
-        "token_present": bool(YANDEX_DISK_TOKEN)
-    }
-
-    logger.info(f"Результат: {response_data}")
-    logger.info("=" * 50)
-
-    return jsonify(response_data)
-
 
 @app.route('/test_google_sheets', methods=['GET'])
 def test_google_sheets():
