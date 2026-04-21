@@ -293,6 +293,7 @@ async function reportWrongMCC() {
     };
 
     const btn = document.getElementById('reportWrongMccBtn');
+    if (!btn) return;
     const originalText = btn.innerHTML;
     btn.innerHTML = '<span>⏳</span> Отправка...';
     btn.disabled = true;
@@ -430,9 +431,12 @@ function showResult(data) {
                     </div>
                 </div>
 
-                <div style="text-align: center; margin-top: 20px;">
+                <div style="display: flex; gap: 15px; justify-content: center; margin-top: 20px;">
                     <button class="wrong-mcc-button" id="reportWrongMccBtn" onclick="reportWrongMCC()">
                         <span>🚫</span> Неверный МСС
+                    </button>
+                    <button class="recommendations-button" id="recommendationsBtn" onclick="showRecommendations()">
+                        <span>📊</span> Рекомендации по продажам
                     </button>
                 </div>
             </div>
@@ -502,3 +506,214 @@ document.addEventListener('keydown', (e) => {
 setTimeout(() => {
     buildNeuralNetwork();
 }, 500);
+
+// ========== ФУНКЦИЯ РЕКОМЕНДАЦИЙ ПО ПРОДАЖАМ ==========
+
+// Списки MCC-кодов
+const POS_CREDIT_ALLOWED = new Set([
+    '5977', '5193', '7538', '7535', '5013', '5532', '5533', '5551', '5571',
+    '8021', '8043', '7298', '5137', '5611', '5621', '5661', '5641', '5651',
+    '5655', '5948', '5691', '5699', '5944', '7997', '5941', '5733', '5940',
+    '5996', '5598', '5947', '5999', '5021', '5074', '5231', '5251', '5200',
+    '5261', '5712', '5713', '5714', '5719', '5211', '5047', '4812', '5045',
+    '5072', '5734', '5817', '5722', '5732', '5946', '5945', '4112', '4722',
+    '1740', '1771', '5065', '5198', '5718', '5975', '5997', '7032', '7531',
+    '1520', '5521', '8099', '5995', '5541', '7011', '5511', '5976', '5631',
+    '8042', '5139', '5681', '5131', '5094', '7922', '7991', '5735', '7994',
+    '5949', '5192', '5942', '5331', '5310', '5399', '5311', '5039', '5531',
+    '5950', '0780', '7998', '1711', '1731', '1750', '1761', '1799', '5422',
+    '5816', '5818', '7622', '7629', '5044', '5697', '7221', '7379', '7623',
+    '7631', '7641', '7699', '6300', '8999', '7999', '8299', '7299', '3011',
+    '4011', '4789', '4468', '5815', '5978', '7692', '5051', '4411', '8244',
+    '8249', '7333', '7395', '8241', '8911', '8675', '7523', '7542', '7534',
+    '3692', '5599', '5698', '7230', '7297', '8011', '8050', '8062', '8071',
+    '5931', '7911', '7941', '7996', '5971', '5943', '5111', '5992', '0742',
+    '7210', '7216', '7217', '7311', '7349', '7394', '6513', '6211', '7512',
+    '4111', '4511', '4582', '7033', '8211', '8220', '3089', '3778', '3779',
+    '4457', '5300', '5937', '5970', '5998', '7251', '7296', '7519', '8049',
+    '5592', '7513', '4214', '4225', '5561', '7992', '7211', '7278', '7342'
+]);
+
+const POS_CREDIT_FORBIDDEN = new Set([
+    '5983', '4784', '9222', '9311', '9399', '5811', '5812', '5814', '5813',
+    '5122', '5912', '7832', '7841', '7932', '7933', '7995', '5932', '5973',
+    '5309', '4816', '4121', '4215', '4899', '4900', '7392', '7261', '8111',
+    '8931', '5933', '4131', '6051', '8398', '8661', '8699', '5411', '5441',
+    '5451', '5462', '5499', '5921', '5993', '763', '4119', '4814', '4829',
+    '5046', '5542', '5552', '5972', '6010', '6011', '6540', '7273', '7393',
+    '7549', '8031', '8041', '9406', '5994', '7338', '7361', '7375', '2741',
+    '7993', '8351', '6012', '7276', '7277', '7339', '7399', '9402', '8641', '8651'
+]);
+
+// Списки для СберЧаевых
+const SBERTIPS_ALLOWED = new Set([
+    '5812', '5814', '5813', '7011', '3501', '3504', '3509', '3604', '4215', '5300', '7230', '7298'
+]);
+
+const SBERTIPS_FORBIDDEN = new Set([
+    '9311', '7261', '9399', '8211', '8661', '8062', '7995', '6513', '5122', '5921', '5993', '6211', '6051', '6050', '7012'
+]);
+
+// Функция для получения рекомендаций по продажам
+function getSalesRecommendations(mccCode, mccName, businessName) {
+    const recommendations = {
+        hasPosCredit: false,
+        posCreditMessage: '',
+        hasSberTips: false,
+        sberTipsMessage: '',
+        generalMessage: '',
+        showButton: true
+    };
+
+    // 1. Проверка POS-кредитования
+    if (POS_CREDIT_ALLOWED.has(mccCode)) {
+        recommendations.hasPosCredit = true;
+        recommendations.posCreditMessage = `✅ POS-кредитование доступно для МСС-кода ${mccCode} (${mccName}).
+        \nРекомендуем предложить клиенту оформление покупки в рассрочку или кредит прямо на месте.
+        \n🎯 Выгода: повышение среднего чека до 40%, увеличение конверсии в продажу.`;
+    } else if (POS_CREDIT_FORBIDDEN.has(mccCode)) {
+        recommendations.hasPosCredit = false;
+        recommendations.posCreditMessage = `❌ POS-кредитование НЕ доступно для МСС-кода ${mccCode} (${mccName}).
+        \nДанный вид деятельности не подходит для рассрочки/кредита на месте.`;
+    } else {
+        recommendations.hasPosCredit = false;
+        recommendations.posCreditMessage = `⚠️ POS-кредитование для МСС-кода ${mccCode} (${mccName}) требует дополнительной проверки.
+        \nОбратитесь в отдел риск-менеджмента для уточнения возможности подключения.`;
+    }
+
+    // 2. Проверка СберЧаевых
+    if (SBERTIPS_ALLOWED.has(mccCode)) {
+        recommendations.hasSberTips = true;
+        recommendations.sberTipsMessage = `💬 СберЧаевые рекомендуются для МСС-кода ${mccCode} (${mccName})!
+        \nПредложите клиенту подключение сервиса для приёма чаевых через СБП.
+        \n🎯 Преимущества: безналичные чаевые, лёгкое подключение, прозрачная отчётность.`;
+    } else if (SBERTIPS_FORBIDDEN.has(mccCode)) {
+        recommendations.hasSberTips = false;
+        recommendations.sberTipsMessage = `❌ СберЧаевые НЕ рекомендуются для МСС-кода ${mccCode} (${mccName}).`;
+    } else {
+        recommendations.hasSberTips = false;
+        recommendations.sberTipsMessage = `🤔 Для МСС-кода ${mccCode} (${mccName}) возможность подключения СберЧаевых требует уточнения.`;
+    }
+
+    // 3. Общая рекомендация на основе типа бизнеса
+    if (POS_CREDIT_ALLOWED.has(mccCode) && SBERTIPS_ALLOWED.has(mccCode)) {
+        recommendations.generalMessage = `🏆 Универсальное предложение: клиенту подходят оба продукта!
+        \n1️⃣ POS-кредитование — для увеличения среднего чека
+        \n2️⃣ СберЧаевые — для дополнительного дохода от клиентов
+
+        \n📞 Рекомендуем провести встречу и презентовать оба решения.`;
+    } else if (POS_CREDIT_ALLOWED.has(mccCode)) {
+        recommendations.generalMessage = `📈 Ключевая рекомендация: предложите клиенту POS-кредитование.
+        \nЭто идеальный продукт для бизнеса с МСС-кодом ${mccCode}.
+        \n🎯 Продающий скрипт: «Увеличьте свои продажи — предложите клиентам рассрочку прямо на кассе».`;
+    } else if (SBERTIPS_ALLOWED.has(mccCode)) {
+        recommendations.generalMessage = `💡 Ключевая рекомендация: предложите клиенту СберЧаевые.
+        \nЭтот продукт идеально подходит для вашего типа бизнеса.
+        \n🎯 Продающий скрипт: «Позвольте клиентам благодарить вас рублём — подключите безналичные чаевые».`;
+    } else {
+        recommendations.generalMessage = `🤝 Рекомендуем провести дополнительный анализ потребностей клиента.
+        \nМСС-код ${mccCode} (${mccName}) не входит в стандартные продуктовые матрицы.
+        \n🎯 Предложите базовый эквайринг и дополнительные сервисы от Сбера.`;
+    }
+
+    return recommendations;
+}
+
+// Функция для отображения рекомендаций в модальном окне
+function showRecommendationsModal(recommendations, businessName, mccCode, mccName) {
+    // Удаляем старое модальное окно, если есть
+    const existingModal = document.getElementById('recommendationsModal');
+    if (existingModal) existingModal.remove();
+
+    // Создаём модальное окно
+    const modal = document.createElement('div');
+    modal.id = 'recommendationsModal';
+    modal.className = 'modal-overlay';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 550px;">
+            <div class="modal-header">
+                <h2>
+                    <span>📊</span> Рекомендации по продажам
+                </h2>
+                <div class="modal-close" onclick="document.getElementById('recommendationsModal').remove()">✕</div>
+            </div>
+
+            <div style="margin-bottom: 10px; padding: 12px; background: rgba(60,200,100,0.15); border-radius: 16px;">
+                <div style="font-size: 14px; color: rgba(255,255,255,0.7);">Торговая точка:</div>
+                <div style="font-size: 18px; font-weight: 600; color: #b0ffc0;">${escapeHtml(businessName)}</div>
+                <div style="font-size: 13px; color: rgba(255,255,255,0.6); margin-top: 5px;">MCC: ${mccCode} — ${escapeHtml(mccName)}</div>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <div style="background: rgba(60,200,100,0.1); border-radius: 16px; padding: 15px; margin-bottom: 12px;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                        <span style="font-size: 24px;">💰</span>
+                        <span style="font-weight: 700; color: #b0ffc0;">POS-кредитование</span>
+                    </div>
+                    <p style="color: rgba(255,255,255,0.85); font-size: 14px; line-height: 1.5; white-space: pre-line;">${recommendations.posCreditMessage}</p>
+                </div>
+
+                <div style="background: rgba(60,200,100,0.1); border-radius: 16px; padding: 15px; margin-bottom: 12px;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                        <span style="font-size: 24px;">💬</span>
+                        <span style="font-weight: 700; color: #b0ffc0;">СберЧаевые</span>
+                    </div>
+                    <p style="color: rgba(255,255,255,0.85); font-size: 14px; line-height: 1.5; white-space: pre-line;">${recommendations.sberTipsMessage}</p>
+                </div>
+
+                <div style="background: linear-gradient(135deg, rgba(30,100,50,0.3), rgba(20,60,40,0.3)); border-radius: 16px; padding: 15px; border-left: 4px solid #4CAF50;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                        <span style="font-size: 24px;">🎯</span>
+                        <span style="font-weight: 700; color: #b0ffc0;">Продажная рекомендация</span>
+                    </div>
+                    <p style="color: rgba(255,255,255,0.9); font-size: 14px; line-height: 1.5; white-space: pre-line;">${recommendations.generalMessage}</p>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 15px;">
+                <button class="ios-button" onclick="document.getElementById('recommendationsModal').remove()" style="flex: 1;">
+                    ✖️ Закрыть
+                </button>
+                <button class="ios-button" onclick="window.open('https://www.sberbank.ru/ru/small_business/acquiring', '_blank')" style="flex: 1; background: rgba(30,100,50,0.8);">
+                    📞 Запросить подключение
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Закрытие по клику на фон
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
+}
+
+// Функция для обработки нажатия на кнопку рекомендаций
+async function showRecommendations() {
+    if (!currentMCCData) {
+        showToast('❌ Нет данных о текущем МСС-коде', true);
+        return;
+    }
+
+    const { mcc_code, mcc_name, org_name } = currentMCCData;
+
+    showToast('📊 Загружаем рекомендации...');
+
+    setTimeout(() => {
+        const recommendations = getSalesRecommendations(mcc_code, mcc_name, org_name);
+        showRecommendationsModal(recommendations, org_name, mcc_code, mcc_name);
+    }, 300);
+}
+
+// Функция для экранирования HTML
+function escapeHtml(str) {
+    if (!str) return '';
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
