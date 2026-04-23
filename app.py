@@ -611,6 +611,44 @@ def find_organizations_in_building(building_id, org_name):
     except Exception as e:
         return None, str(e)
 
+def search_building(address):
+    """
+    Этап 1: Поиск здания по адресу
+    Возвращает: (building, error, item_type)
+    item_type: 'building' или 'branch'
+    """
+    try:
+        # Важно: ищем ТОЛЬКО здания и организации, без ограничений
+        response = requests.get(
+            "https://catalog.api.2gis.com/3.0/items",
+            params={
+                'q': address,
+                'key': DGIS_API_KEY,
+                'fields': 'items.id,items.name,items.address_name,items.purpose_name,items.type'
+            },
+            timeout=10
+        )
+        
+        if response.status_code != 200:
+            return None, f"Ошибка API: {response.status_code}", None
+        
+        data = response.json()
+        
+        if 'result' not in data or 'items' not in data['result'] or not data['result']['items']:
+            return None, "Ничего не найдено", None
+        
+        # Берём первый результат
+        first_item = data['result']['items'][0]
+        item_type = first_item.get('type', '')
+        
+        logger.info(f"📍 Найден объект: {first_item.get('name')} (тип: {item_type})")
+        
+        return first_item, None, item_type
+        
+    except Exception as e:
+        return None, str(e), None
+    
+    
 def get_rubrics_and_services(org):
     """
     Извлекает рубрики и услуги из организации.

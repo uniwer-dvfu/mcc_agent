@@ -65,9 +65,6 @@
                     <button type="button" class="ios-button" id="submitFeedback">
                         📨 Отправить
                     </button>
-                    <button type="button" class="ios-button btn-cancel" id="cancelFeedback">
-                        Отмена
-                    </button>
                 </div>
             </form>
 
@@ -151,13 +148,14 @@
 
     <!-- Основной контент -->
     <div class="container">
-        <!-- Хедер -->
-        <header class="header">
-            <div class="corner-buttons">
+        <div class="corner-buttons">
                 <button class="corner-button" id="openInstructionBtn">
                     <span>📋</span> Инструкция
                 </button>
             </div>
+        <!-- Хедер -->
+        <header class="header">
+            
             <h1>
                 🤖 MCC AI Agent
                 <span class="ios-badge">2GIS Search</span>
@@ -188,7 +186,6 @@
 
     <!-- Футер -->
     <div class="footer">
-        🔍 Поиск по 2GIS API • 🤖 Нейросеть определяет MCC-код • 📎 Файлы на Яндекс.Диске
     </div>
 
     <script src="{{ url_for('static', filename='main.js') }}"></script>
