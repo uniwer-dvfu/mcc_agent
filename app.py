@@ -453,15 +453,13 @@ def send_to_google_sheets(name, email, message, files=None, status="Новое")
         logger.error(f"❌ Ошибка: {e}")
         return False, str(e)
 
-
-def save_feedback_to_file(name, email, badge_number, message, files=None):
+def save_feedback_to_file(name, email, message, files=None):
     """Сохраняет обратную связь в файл"""
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     feedback_entry = f"""
 [{timestamp}]
 👤 Имя: {name}
 📧 Email: {email}
-🏷️ Табельный номер: {badge_number if badge_number else 'не указан'}
 💬 Сообщение: {message}
 """
     if files:
@@ -613,43 +611,6 @@ def find_organizations_in_building(building_id, org_name):
     except Exception as e:
         return None, str(e)
 
-
-def search_building(address):
-    """
-    Этап 1: Поиск здания по адресу
-    Возвращает: (building, error, item_type)
-    item_type: 'building' или 'branch'
-    """
-    try:
-        # Важно: ищем ТОЛЬКО здания и организации, без ограничений
-        response = requests.get(
-            "https://catalog.api.2gis.com/3.0/items",
-            params={
-                'q': address,
-                'key': DGIS_API_KEY,
-                'fields': 'items.id,items.name,items.address_name,items.purpose_name,items.type'
-            },
-            timeout=10
-        )
-
-        if response.status_code != 200:
-            return None, f"Ошибка API: {response.status_code}", None
-
-        data = response.json()
-
-        if 'result' not in data or 'items' not in data['result'] or not data['result']['items']:
-            return None, "Ничего не найдено", None
-
-        # Берём первый результат
-        first_item = data['result']['items'][0]
-        item_type = first_item.get('type', '')
-
-        logger.info(f"📍 Найден объект: {first_item.get('name')} (тип: {item_type})")
-
-        return first_item, None, item_type
-
-    except Exception as e:
-        return None, str(e), None
 def get_rubrics_and_services(org):
     """
     Извлекает рубрики и услуги из организации.
@@ -977,7 +938,6 @@ def send_feedback():
     try:
         name = request.form.get('name', '').strip()
         email = request.form.get('email', '').strip()
-        badge_number = request.form.get('badge_number', '').strip()  # НОВОЕ ПОЛЕ
         message = request.form.get('message', '').strip()
         files = request.files.getlist('attachments')
 
@@ -995,10 +955,6 @@ def send_feedback():
         logger.info("📨 НОВАЯ ОБРАТНАЯ СВЯЗЬ")
         logger.info(f"Имя: {name}")
         logger.info(f"Email: {email}")
-        if badge_number:
-            logger.info(f"🏷️ Табельный номер: {badge_number}")
-        else:
-            logger.info("🏷️ Табельный номер: не указан")
         logger.info(f"Сообщение: {message[:50]}...")
         logger.info(f"Файлов: {len(files) if files else 0}")
 
@@ -1013,22 +969,11 @@ def send_feedback():
                         if result['success']:
                             saved_files.append(result)
 
-        # Сохраняем локально (с табельным номером)
-        save_feedback_to_file(name, email, badge_number, message, saved_files)
+        # Сохраняем локально
+        save_feedback_to_file(name, email, message, saved_files)
 
-        # Формируем сообщение для Google Sheets с табельным номером
-        google_message = message
-        if badge_number:
-            google_message = f"🏷️ Табельный номер: {badge_number}\n\n{message}"
-
-        # Отправляем в Google Sheets
-        sheets_success, sheets_message = send_to_google_sheets(
-            name,
-            email,
-            google_message,
-            saved_files,
-            "Обратная связь"
-        )
+        # Отправляем в Google Sheets со статусом "Обратная связь"
+        sheets_success, sheets_message = send_to_google_sheets(name, email, message, saved_files, "Обратная связь")
 
         response_message = "Спасибо! "
         if saved_files:

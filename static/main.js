@@ -72,7 +72,6 @@ function closeFeedbackModal() {
 
 openFeedbackBtn.addEventListener('click', openFeedbackModal);
 feedbackClose.addEventListener('click', closeFeedbackModal);
-cancelFeedback.addEventListener('click', closeFeedbackModal);
 
 feedbackModal.addEventListener('click', (e) => {
     if (e.target === feedbackModal) {
@@ -671,14 +670,10 @@ function showRecommendationsModal(recommendations, businessName, mccCode, mccNam
                 </div>
             </div>
 
-            <div style="display: flex; gap: 15px;">
-                <button class="ios-button" onclick="document.getElementById('recommendationsModal').remove()" style="flex: 1;">
-                    ✖️ Закрыть
-                </button>
-                <button class="ios-button" onclick="window.open('https://www.sberbank.ru/ru/small_business/acquiring', '_blank')" style="flex: 1; background: rgba(30,100,50,0.8);">
-                    📞 Запросить подключение
-                </button>
-            </div>
+            <!-- Убрана кнопка "Закрыть", осталась только "Запросить подключение" -->
+            <button class="ios-button" onclick="window.open('https://www.sberbank.ru/ru/small_business/acquiring', '_blank')" style="width: 100%; background: rgba(30,100,50,0.8);">
+                📞 Запросить подключение
+            </button>
         </div>
     `;
 
@@ -689,6 +684,7 @@ function showRecommendationsModal(recommendations, businessName, mccCode, mccNam
         if (e.target === modal) modal.remove();
     });
 }
+
 
 // Функция для обработки нажатия на кнопку рекомендаций
 async function showRecommendations() {
