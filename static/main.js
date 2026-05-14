@@ -78,10 +78,10 @@ feedbackModal.addEventListener('click', (e) => {
         closeFeedbackModal();
     }
 });
-
 submitFeedback.addEventListener('click', async () => {
     const name = document.getElementById('feedbackName').value.trim();
     const email = document.getElementById('feedbackEmail').value.trim();
+    const badgeNumber = document.getElementById('feedbackBadgeNumber').value.trim();
     const message = document.getElementById('feedbackMessage').value.trim();
     const files = fileInput.files;
 
@@ -95,8 +95,25 @@ submitFeedback.addEventListener('click', async () => {
         return;
     }
 
+    // Валидация табельного номера (7 цифр)
+    if (!badgeNumber) {
+        feedbackStatus.innerHTML = '<div style="color: #ff6b6b;">❌ Укажите табельный номер (7 цифр)</div>';
+        return;
+    }
+
+    if (!/^\d{7}$/.test(badgeNumber)) {
+        feedbackStatus.innerHTML = '<div style="color: #ff6b6b;">❌ Табельный номер должен состоять из 7 цифр</div>';
+        return;
+    }
+
     if (!message || message.length < 10) {
         feedbackStatus.innerHTML = '<div style="color: #ff6b6b;">❌ Сообщение должно содержать минимум 10 символов</div>';
+        return;
+    }
+
+    // Проверка на наличие прикреплённых файлов
+    if (files.length === 0) {
+        feedbackStatus.innerHTML = '<div style="color: #ff6b6b;">❌ Прикрепите файлы (терминальный чек, фото вывески и т.д.)</div>';
         return;
     }
 
@@ -106,6 +123,7 @@ submitFeedback.addEventListener('click', async () => {
     const formData = new FormData();
     formData.append('name', name);
     formData.append('email', email);
+    formData.append('badge_number', badgeNumber);
     formData.append('message', message);
 
     for (let i = 0; i < files.length; i++) {

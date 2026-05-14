@@ -453,19 +453,23 @@ def send_to_google_sheets(name, email, message, files=None, status="Новое")
         logger.error(f"❌ Ошибка: {e}")
         return False, str(e)
 
-def save_feedback_to_file(name, email, message, files=None):
+
+def save_feedback_to_file(name, email, badge_number, message, files=None):
     """Сохраняет обратную связь в файл"""
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     feedback_entry = f"""
 [{timestamp}]
 👤 Имя: {name}
 📧 Email: {email}
+🏷️ Табельный номер: {badge_number}
 💬 Сообщение: {message}
 """
     if files:
         feedback_entry += "📎 Файлы:\n"
         for f in files:
             feedback_entry += f"  - {f.get('filename', 'Файл')}: {f.get('url', '#')} ({f.get('size', 0) // 1024} KB)\n"
+    else:
+        feedback_entry += "📎 Файлы: не приложены\n"
     feedback_entry += "-" * 60 + "\n"
 
     try:
@@ -938,6 +942,7 @@ def send_feedback():
     try:
         name = request.form.get('name', '').strip()
         email = request.form.get('email', '').strip()
+        badge_number = request.form.get('badge_number', '').strip()
         message = request.form.get('message', '').strip()
         files = request.files.getlist('attachments')
 
@@ -948,13 +953,25 @@ def send_feedback():
         if not email or '@' not in email or '.' not in email:
             return jsonify({"success": False, "error": "Укажите корректный email"})
 
+        # Валидация табельного номера (7 цифр)
+        if not badge_number:
+            return jsonify({"success": False, "error": "Укажите табельный номер"})
+
+        if not re.match(r'^\d{7}$', badge_number):
+            return jsonify({"success": False, "error": "Табельный номер должен состоять из 7 цифр"})
+
         if not message or len(message) < 10:
             return jsonify({"success": False, "error": "Сообщение должно содержать минимум 10 символов"})
+
+        # Проверка на наличие прикреплённых файлов
+        if not files or len(files) == 0 or files[0].filename == '':
+            return jsonify({"success": False, "error": "Прикрепите файлы (терминальный чек, фото вывески и т.д.)"})
 
         logger.info("=" * 50)
         logger.info("📨 НОВАЯ ОБРАТНАЯ СВЯЗЬ")
         logger.info(f"Имя: {name}")
         logger.info(f"Email: {email}")
+        logger.info(f"🏷️ Табельный номер: {badge_number}")
         logger.info(f"Сообщение: {message[:50]}...")
         logger.info(f"Файлов: {len(files) if files else 0}")
 
@@ -970,10 +987,19 @@ def send_feedback():
                             saved_files.append(result)
 
         # Сохраняем локально
-        save_feedback_to_file(name, email, message, saved_files)
+        save_feedback_to_file(name, email, badge_number, message, saved_files)
 
-        # Отправляем в Google Sheets со статусом "Обратная связь"
-        sheets_success, sheets_message = send_to_google_sheets(name, email, message, saved_files, "Обратная связь")
+        # Формируем сообщение для Google Sheets
+        google_message = f"🏷️ Табельный номер: {badge_number}\n\n{message}"
+
+        # Отправляем в Google Sheets
+        sheets_success, sheets_message = send_to_google_sheets(
+            name,
+            email,
+            google_message,
+            saved_files,
+            "Обратная связь"
+        )
 
         response_message = "Спасибо! "
         if saved_files:

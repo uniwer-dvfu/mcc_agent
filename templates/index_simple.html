@@ -22,51 +22,58 @@
     </button>
 
     <!-- Модальное окно обратной связи -->
-    <div class="modal-overlay" id="feedbackModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>
-                    <span>💬</span> Обратная связь
-                </h2>
-                <div class="modal-close" id="feedbackClose">✕</div>
+<div class="modal-overlay" id="feedbackModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>
+                <span>💬</span> Обратная связь
+            </h2>
+            <div class="modal-close" id="feedbackClose">✕</div>
+        </div>
+
+        <div class="feedback-description">
+            Будем рады получить вашу обратную связь!
+        </div>
+
+        <form id="feedbackForm" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="feedbackName">Ваше имя *</label>
+                <input type="text" class="liquid-input" id="feedbackName" name="name" placeholder="Как к вам обращаться?" required>
             </div>
 
-            <div class="feedback-description">
-                Будем рады получить вашу обратную связь!<br>
-                <small>Можно прикрепить файлы (изображения, документы)</small>
+            <div class="form-group">
+                <label for="feedbackEmail">Email для ответа *</label>
+                <input type="email" class="liquid-input" id="feedbackEmail" name="email" placeholder="example@mail.ru" required>
             </div>
 
-            <form id="feedbackForm" enctype="multipart/form-data">
-                <div class="form-group">
-                    <label for="feedbackName">Ваше имя</label>
-                    <input type="text" class="liquid-input" id="feedbackName" name="name" placeholder="Как к вам обращаться?" required>
-                </div>
+            <div class="form-group">
+                <label for="feedbackBadgeNumber">Табельный номер *</label>
+                <input type="text" class="liquid-input" id="feedbackBadgeNumber" name="badge_number"
+                       placeholder="Введите 7 цифр" maxlength="7" pattern="\d{7}"
+                       title="Табельный номер состоит из 7 цифр" required>
+            </div>
 
-                <div class="form-group">
-                    <label for="feedbackEmail">Email для ответа</label>
-                    <input type="email" class="liquid-input" id="feedbackEmail" name="email" placeholder="example@mail.ru" required>
-                </div>
-                <div class="form-group">
-                    <label for="feedbackBadgeNumber">
-                    Табельный номер
-                    <span class="hint-icon" data-hint="Укажите, если вы сотрудник Сбера (необязательно)">?</span>
-                    </label>
-                    <input type="text" class="liquid-input" id="feedbackBadgeNumber" name="badge_number" placeholder="Например: 123456 (необязательно)">
-                </div>
+            <div class="form-group">
+                <label for="feedbackMessage">Ваше сообщение *</label>
+                <textarea class="liquid-input" id="feedbackMessage" name="message" rows="5"
+                          placeholder="Опишите, что понравилось или что можно улучшить..." required></textarea>
+            </div>
 
-                <div class="form-group">
-                    <label for="feedbackMessage">Ваше сообщение</label>
-                    <textarea class="liquid-input" id="feedbackMessage" name="message" rows="5" placeholder="Поделитесь своими мыслями..." required></textarea>
+            <div class="form-group">
+                <label for="attachments">
+                    📎 Прикрепить файлы
+                </label>
+                <input type="file" class="liquid-input" id="attachments" name="attachments" multiple required>
+                <div class="attachments-hint">
+                    <div>Документы для прикрепления:</div>
+                    <ul>
+                        <li>Терминальный чек</li>
+                        <li>Фото вывески</li>
+                        <li>Другие фото торговой точки</li>
+                    </ul>
                 </div>
-
-                <div class="form-group">
-                    <label for="attachments">
-                        📎 Прикрепить файлы
-                        <span class="hint-icon" data-hint="Можно прикрепить несколько файлов (изображения, PDF, документы)">?</span>
-                    </label>
-                    <input type="file" class="liquid-input" id="attachments" name="attachments" multiple>
-                    <div id="fileList" class="file-list"></div>
-                </div>
+                <div id="fileList" class="file-list"></div>
+            </div>
 
                 <div class="button-group">
                     <button type="button" class="ios-button" id="submitFeedback">
