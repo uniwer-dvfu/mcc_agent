@@ -1,7 +1,6 @@
 // Элементы страницы
 const searchBtn = document.getElementById('searchBtn');
 const resultContainer = document.getElementById('resultContainer');
-const neuralContainer = document.getElementById('neuralContainer');
 const orgNameInput = document.getElementById('orgName');
 const addressInput = document.getElementById('address');
 
@@ -14,15 +13,11 @@ const instructionClose = document.getElementById('instructionClose');
 const feedbackModal = document.getElementById('feedbackModal');
 const openFeedbackBtn = document.getElementById('openFeedbackBtn');
 const feedbackClose = document.getElementById('feedbackClose');
-const cancelFeedback = document.getElementById('cancelFeedback');
 const submitFeedback = document.getElementById('submitFeedback');
 const feedbackStatus = document.getElementById('feedbackStatus');
 const fileInput = document.getElementById('attachments');
 const fileList = document.getElementById('fileList');
 
-let neurons = [];
-let connections = [];
-let neuralNetworkBuilt = false;
 let currentMCCData = null;
 
 // Отображение выбранных файлов
@@ -60,6 +55,7 @@ function openFeedbackModal() {
     feedbackModal.classList.add('active');
     document.getElementById('feedbackName').value = '';
     document.getElementById('feedbackEmail').value = '';
+    document.getElementById('feedbackBadgeNumber').value = '';
     document.getElementById('feedbackMessage').value = '';
     fileInput.value = '';
     fileList.innerHTML = '';
@@ -78,6 +74,7 @@ feedbackModal.addEventListener('click', (e) => {
         closeFeedbackModal();
     }
 });
+
 submitFeedback.addEventListener('click', async () => {
     const name = document.getElementById('feedbackName').value.trim();
     const email = document.getElementById('feedbackEmail').value.trim();
@@ -153,113 +150,6 @@ submitFeedback.addEventListener('click', async () => {
     }
 });
 
-// Функция для создания нейронной сети
-function buildNeuralNetwork() {
-    neuralContainer.innerHTML = '';
-    neurons = [];
-    connections = [];
-
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-    const neuronCount = 35;
-
-    for (let i = 0; i < neuronCount; i++) {
-        const isLarge = Math.random() < 0.2;
-        const neuron = document.createElement('div');
-        neuron.className = `neuron ${isLarge ? 'neuron-large' : ''}`;
-
-        const x = Math.random() * width;
-        const y = Math.random() * height;
-
-        neuron.style.left = x + 'px';
-        neuron.style.top = y + 'px';
-        neuron.dataset.x = x;
-        neuron.dataset.y = y;
-
-        neuralContainer.appendChild(neuron);
-        neurons.push(neuron);
-
-        setTimeout(() => {
-            neuron.classList.add('visible');
-        }, i * 30);
-    }
-
-    setTimeout(() => {
-        for (let i = 0; i < neurons.length; i++) {
-            for (let j = i + 1; j < neurons.length; j++) {
-                const x1 = parseFloat(neurons[i].style.left);
-                const y1 = parseFloat(neurons[i].style.top);
-                const x2 = parseFloat(neurons[j].style.left);
-                const y2 = parseFloat(neurons[j].style.top);
-
-                const distance = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
-
-                if (distance < 250 && Math.random() < 0.6) {
-                    createConnection(neurons[i], neurons[j]);
-                }
-            }
-        }
-    }, 500);
-
-    neuralContainer.classList.add('visible');
-    neuralNetworkBuilt = true;
-}
-
-function createConnection(neuron1, neuron2) {
-    const connection = document.createElement('div');
-    connection.className = 'connection';
-
-    const x1 = parseFloat(neuron1.style.left);
-    const y1 = parseFloat(neuron1.style.top);
-    const x2 = parseFloat(neuron2.style.left);
-    const y2 = parseFloat(neuron2.style.top);
-
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    const angle = Math.atan2(dy, dx) * 180 / Math.PI;
-
-    connection.style.left = x1 + 'px';
-    connection.style.top = y1 + 'px';
-    connection.style.width = distance + 'px';
-    connection.style.transform = `rotate(${angle}deg)`;
-
-    neuralContainer.appendChild(connection);
-    connections.push({ element: connection, neuron1, neuron2 });
-
-    setTimeout(() => {
-        connection.classList.add('visible');
-    }, 100);
-}
-
-function activateNeuralNetwork() {
-    if (!neuralNetworkBuilt) return;
-
-    const activeCount = 5 + Math.floor(Math.random() * 5);
-
-    for (let i = 0; i < activeCount; i++) {
-        setTimeout(() => {
-            const randomNeuron = neurons[Math.floor(Math.random() * neurons.length)];
-            randomNeuron.classList.add('active-neuron');
-
-            setTimeout(() => {
-                randomNeuron.classList.remove('active-neuron');
-            }, 300);
-        }, i * 100);
-    }
-
-    setTimeout(() => {
-        for (let i = 0; i < Math.min(8, connections.length); i++) {
-            const randomConn = connections[Math.floor(Math.random() * connections.length)];
-            randomConn.element.classList.add('active-connection');
-
-            setTimeout(() => {
-                randomConn.element.classList.remove('active-connection');
-            }, 400);
-        }
-    }, 200);
-}
-
 function showLoader() {
     resultContainer.innerHTML = `
         <div class="loader">
@@ -272,10 +162,6 @@ function showLoader() {
             <div style="color: rgba(180,255,190,0.6); margin-top: 10px;">Этап 1: поиск здания</div>
         </div>
     `;
-
-    for (let i = 0; i < 5; i++) {
-        setTimeout(() => activateNeuralNetwork(), i * 200);
-    }
 }
 
 function showToast(message, isError = false) {
@@ -459,10 +345,6 @@ function showResult(data) {
             </div>
         </div>
     `;
-
-    for (let i = 0; i < 8; i++) {
-        setTimeout(() => activateNeuralNetwork(), i * 150);
-    }
 }
 
 searchBtn.addEventListener('click', async () => {
@@ -518,11 +400,6 @@ document.addEventListener('keydown', (e) => {
         }
     }
 });
-
-// Строим нейросеть при загрузке
-setTimeout(() => {
-    buildNeuralNetwork();
-}, 500);
 
 // ========== ФУНКЦИЯ РЕКОМЕНДАЦИЙ ПО ПРОДАЖАМ ==========
 
