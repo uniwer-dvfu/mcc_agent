@@ -296,6 +296,35 @@ function showResult(data) {
 
     let mccDescription = mcc.description ? `<div class="mcc-description">📋 ${mcc.description}</div>` : '';
 
+    // Блоки GigaChat (вынесены в отдельную переменную)
+    let gigachatHtml = '';
+    if (mcc.gigachat_explanation) {
+        gigachatHtml += `
+            <div style="margin-top: 15px; padding: 15px; background: rgba(60,200,100,0.1); border-radius: 16px; border-left: 4px solid #4CAF50; text-align: left;">
+                <div style="font-weight: 600; color: #b0ffc0; margin-bottom: 8px;">
+                    🤖 Объяснение ИИ (GigaChat)
+                </div>
+                <p style="color: rgba(255,255,255,0.85); font-size: 14px; line-height: 1.5;">
+                    ${escapeHtml(mcc.gigachat_explanation)}
+                </p>
+            </div>
+        `;
+    }
+    if (mcc.gigachat_products && mcc.gigachat_products.length > 0) {
+        gigachatHtml += `
+            <div style="margin-top: 15px; padding: 15px; background: rgba(30,100,50,0.3); border-radius: 16px; text-align: left;">
+                <div style="font-weight: 600; color: #b0ffc0; margin-bottom: 8px;">
+                    💡 Рекомендованные продукты (GigaChat)
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    ${mcc.gigachat_products.map(p =>
+                        `<span style="background: rgba(60,200,100,0.2); padding: 4px 12px; border-radius: 20px; font-size: 13px; color: #d0ffd8; border: 1px solid rgba(80,255,120,0.3);">${escapeHtml(p)}</span>`
+                    ).join('')}
+                </div>
+            </div>
+        `;
+    }
+
     resultContainer.innerHTML = `
         <div class="result-card">
             <div class="result-header">
@@ -333,7 +362,7 @@ function showResult(data) {
                         <div class="confidence-fill" style="width: ${mcc.confidence}%"></div>
                     </div>
                 </div>
-
+                ${gigachatHtml}
                 <div style="display: flex; gap: 15px; justify-content: center; margin-top: 20px;">
                     <button class="wrong-mcc-button" id="reportWrongMccBtn" onclick="reportWrongMCC()">
                         <span>🚫</span> Неверный МСС

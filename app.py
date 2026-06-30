@@ -13,7 +13,7 @@ from email.mime.multipart import MIMEMultipart
 import logging
 from werkzeug.utils import secure_filename
 import json
-
+from gigachat_service import enhance_with_gigachat, generate_sales_text_with_gigachat
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -692,14 +692,9 @@ def predict_mcc_from_org(organization, building_name, address):
     # Формируем текст для поиска
     search_text = f"{org_name} {building_name} {address} {' '.join(rubrics)} {' '.join(services)}".lower()
 
-    # Словарь для хранения всех кандидатов
     candidates = []
-
-    # Проходим по всей базе MCC_DATABASE
     for item in MCC_DATABASE:
         score, matches, match_count = calculate_relevance(search_text, item["keywords"])
-
-        # Если есть хотя бы одно совпадение
         if match_count > 0:
             candidates.append({
                 "code": item["code"],
@@ -711,7 +706,6 @@ def predict_mcc_from_org(organization, building_name, address):
                 "item": item
             })
 
-    # Если нет ни одного кандидата
     if not candidates:
         return {
             "code": "????",
@@ -723,23 +717,52 @@ def predict_mcc_from_org(organization, building_name, address):
         }
 
     candidates.sort(key=lambda x: (x["match_count"], x["score"]), reverse=True)
-
-    # Берём лучшего кандидата
     best = candidates[0]
-
-    # Рассчитываем уверенность
-    # База: 50% + (количество совпадений * 5%) + (score / 2)
     confidence = min(98, 50 + best["match_count"] * 5 + best["score"] // 2)
+
+    # --- НОВОЕ: улучшаем через GigaChat ---
+    gigachat_result = enhance_with_gigachat(
+        org_name=org_name,
+        rubrics=rubrics,
+        services=services,
+        mcc_candidates=candidates[:5],
+        current_mcc_code=best["code"],
+        current_mcc_name=best["name"]
+    )
+
+    if gigachat_result and gigachat_result.get('mcc_code'):
+        # Если GigaChat предложил другой код, ищем его в базе
+        if gigachat_result['mcc_code'] != best["code"]:
+            for item in MCC_DATABASE:
+                if item['code'] == gigachat_result['mcc_code']:
+                    best = {
+                        "code": item["code"],
+                        "name": item["name"],
+                        "description": item["description"],
+                        "matches": best["matches"],
+                        "match_count": best["match_count"]
+                    }
+                    # Уверенность высокая, так как подтверждено ИИ
+                    confidence = 97
+                    break
+        # Добавляем объяснение и продукты
+        gigachat_explanation = gigachat_result.get('explanation', '')
+        gigachat_products = gigachat_result.get('products', [])
+    else:
+        gigachat_explanation = ''
+        gigachat_products = []
 
     return {
         "code": best["code"],
         "name": best["name"],
-        "description": best["description"],
+        "description": best.get("description", ""),
         "confidence": confidence,
         "found": True,
         "matches": best["matches"],
         "match_count": best["match_count"],
-        "total_candidates": len(candidates)  # для отладки
+        "total_candidates": len(candidates),
+        "gigachat_explanation": gigachat_explanation,
+        "gigachat_products": gigachat_products
     }
 
 def get_suggestions(text):
