@@ -216,41 +216,41 @@ def repair_json(json_str):
 
     return json_str
 
-def generate_sales_text_with_gigachat(org_name, mcc_code, mcc_name, rubrics, services):
-    """
-    Генерирует персонализированный текст рекомендаций по продажам.
-    Возвращает строку или None.
-    """
-    client = get_gigachat_client()
-    if not client:
-        return None
-
-    rubrics_text = ', '.join(rubrics[:5]) if rubrics else 'не указаны'
-    services_text = ', '.join(services[:5]) if services else 'не указаны'
-
-    prompt = f"""
-Ты — консультант по продажам эквайринговых продуктов.
-
-Торговая точка:
-- Название: {org_name}
-- MCC-код: {mcc_code} - {mcc_name}
-- Рубрики: {rubrics_text}
-- Услуги: {services_text}
-
-Напиши краткую (3-5 предложений) рекомендацию для менеджера по продажам:
-- Какие продукты (эквайринг, POS-кредитование, СберЧаевые, другие сервисы) подходят этому клиенту
-- Ключевые аргументы для презентации
-- Возможные возражения и как их обработать
-
-Ответ должен быть в виде связного текста.
-"""
-    try:
-        response = client.chat(prompt)
-        text = response.choices[0].message.content.strip()
-        return text
-    except Exception as e:
-        logger.error(f"❌ Ошибка генерации рекомендаций через GigaChat: {e}")
-        return None
+# def generate_sales_text_with_gigachat(org_name, mcc_code, mcc_name, rubrics, services):
+#     """
+#     Генерирует персонализированный текст рекомендаций по продажам.
+#     Возвращает строку или None.
+#     """
+#     client = get_gigachat_client()
+#     if not client:
+#         return None
+#
+#     rubrics_text = ', '.join(rubrics[:5]) if rubrics else 'не указаны'
+#     services_text = ', '.join(services[:5]) if services else 'не указаны'
+#
+#     prompt = f"""
+# Ты — консультант по продажам эквайринговых продуктов.
+#
+# Торговая точка:
+# - Название: {org_name}
+# - MCC-код: {mcc_code} - {mcc_name}
+# - Рубрики: {rubrics_text}
+# - Услуги: {services_text}
+#
+# Напиши краткую (3-5 предложений) рекомендацию для менеджера по продажам:
+# - Какие продукты (эквайринг, POS-кредитование, СберЧаевые, другие сервисы) подходят этому клиенту
+# - Ключевые аргументы для презентации
+# - Возможные возражения и как их обработать
+#
+# Ответ должен быть в виде связного текста.
+# """
+#     try:
+#         response = client.chat(prompt)
+#         text = response.choices[0].message.content.strip()
+#         return text
+#     except Exception as e:
+#         logger.error(f"❌ Ошибка генерации рекомендаций через GigaChat: {e}")
+#         return None
 
 
 def enhance_with_gigachat_with_retry(org_name, rubrics, services, mcc_candidates, current_mcc_code, current_mcc_name, max_retries=2):
