@@ -13,7 +13,13 @@ from email.mime.multipart import MIMEMultipart
 import logging
 from werkzeug.utils import secure_filename
 import json
-from gigachat_service import enhance_with_gigachat, generate_sales_text_with_gigachat
+from gigachat_service import enhance_with_gigachat
+from sources import extract_extra_info, osm_lookup
+from company import lookup_company
+import partners as partners_service
+import partners_cache
+from products import applicable_products, clean_product_list, clean_product_text
+from gigachat_service import choose_partners_with_gigachat
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -44,32 +50,8 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'txt'}
 # Создаем папку для загрузок
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Загружаем переменные окружения
-load_dotenv()
-
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-app = Flask(__name__)
-
-# Конфигурация
-DGIS_API_KEY = os.getenv('DGIS_API_KEY', '')
-
-# Конфигурация Яндекс.Диска
-YANDEX_DISK_TOKEN = os.getenv('YANDEX_DISK_TOKEN', '')
-YANDEX_DISK_FOLDER = os.getenv('YANDEX_DISK_FOLDER', '/mcc_feedback')
-YANDEX_DISK_API = 'https://cloud-api.yandex.net/v1/disk'
-
 # Конфигурация Google Sheets
 GOOGLE_SHEETS_URL = os.getenv('GOOGLE_SHEETS_WEBHOOK_URL', '')
-
-# Конфигурация для локального хранения файлов
-UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'txt'}
-
-# Создаем папку для загрузок
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 MCC_DATABASE = []
 
@@ -507,6 +489,25 @@ def calculate_similarity(text, keywords):
     return score, matches
 
 
+DGIS_ITEMS_URL = "https://catalog.api.2gis.com/3.0/items"
+# Дополнительные поля 2ГИС: бренд, график работы, координаты (нужны для справочной информации и поиска в OSM)
+DGIS_EXTRA_FIELDS = 'items.brand,items.schedule,items.point'
+
+
+def dgis_items_request(params):
+    """
+    Запрос к 2ГИС с дополнительными полями. Если ключ не поддерживает какое-то из них
+    (ответ не 200), запрос повторяется с базовым набором полей — поиск не ломается.
+    """
+    extended = dict(params)
+    extended['fields'] = f"{params['fields']},{DGIS_EXTRA_FIELDS}"
+    response = requests.get(DGIS_ITEMS_URL, params=extended, timeout=10)
+    if response.status_code == 200:
+        return response
+    logger.warning(f"⚠️ 2ГИС не принял расширенный набор полей ({response.status_code}), повторяю с базовым")
+    return requests.get(DGIS_ITEMS_URL, params=params, timeout=10)
+
+
 def search_organization_direct(org_name, address):
     """
     Этап 0: Прямой поиск организации по названию и адресу
@@ -515,15 +516,13 @@ def search_organization_direct(org_name, address):
         # Формируем поисковый запрос: "название, адрес"
         search_query = f"{org_name}, {address}"
 
-        response = requests.get(
-            "https://catalog.api.2gis.com/3.0/items",
-            params={
+        response = dgis_items_request(
+            {
                 'q': search_query,
                 'key': DGIS_API_KEY,
                 'type': 'branch',  # Ищем только организации
                 'fields': 'items.id,items.name,items.address_name,items.rubrics,items.attribute_groups,items.purpose_name'
-            },
-            timeout=10
+            }
         )
 
         if response.status_code != 200:
@@ -544,21 +543,55 @@ def search_organization_direct(org_name, address):
         return None, str(e)
 
 
+def search_building(address):
+    """
+    Этап 1: поиск здания по адресу в 2ГИС.
+    Возвращает кортеж (объект, ошибка, тип_объекта).
+    Сначала ищет здание; если не найдено, повторяет поиск без фильтра по типу.
+    """
+    fields = 'items.id,items.name,items.address_name,items.purpose_name,items.type'
+    try:
+        for item_type_filter in ('building', None):
+            params = {'q': address, 'key': DGIS_API_KEY, 'fields': fields}
+            if item_type_filter:
+                params['type'] = item_type_filter
+
+            response = requests.get(
+                "https://catalog.api.2gis.com/3.0/items",
+                params=params,
+                timeout=10
+            )
+
+            if response.status_code != 200:
+                return None, f"Ошибка API: {response.status_code}", None
+
+            data = response.json()
+            items = data.get('result', {}).get('items', [])
+            if items:
+                item = items[0]
+                item_type = item.get('type') or item_type_filter or 'unknown'
+                logger.info(f"✅ Найден объект по адресу: {item.get('name') or item.get('address_name')} ({item_type})")
+                return item, None, item_type
+
+        return None, "Адрес не найден", None
+
+    except Exception as e:
+        return None, str(e), None
+
+
 def find_organizations_in_building(building_id, org_name):
     """
     Находит ВСЕ организации в здании и выбирает наиболее релевантную
     """
     try:
-        response = requests.get(
-            "https://catalog.api.2gis.com/3.0/items",
-            params={
+        response = dgis_items_request(
+            {
                 'building_id': building_id,
                 'key': DGIS_API_KEY,
                 'type': 'branch',
                 'fields': 'items.name,items.address_name,items.rubrics,items.attribute_groups',
                 'limit': 50  # Увеличиваем лимит для больших ТЦ
-            },
-            timeout=10
+            }
         )
 
         if response.status_code != 200:
@@ -676,8 +709,8 @@ def calculate_relevance(text, keywords):
             score += 10
             matches.append(keyword)
             match_count += 1
-        # Слово как часть другого слова (менее важно)
-        elif keyword in text_lower:
+        # Слово как часть другого слова (менее важно); слишком короткие ключи (1-2 буквы) не учитываем
+        elif len(keyword) >= 3 and keyword in text_lower:
             score += 3
             matches.append(keyword + "~")
             match_count += 1
@@ -685,9 +718,11 @@ def calculate_relevance(text, keywords):
     return score, matches, match_count
 
 
-def predict_mcc_from_org(organization, building_name, address):
+def predict_mcc_from_org(organization, building_name, address, osm=None, extra=None):
     org_name = organization.get('name', '').lower()
     rubrics, services = get_rubrics_and_services(organization)
+    osm = osm or {}
+    extra = extra or {}
 
     # Формируем текст для поиска
     search_text = f"{org_name} {building_name} {address} {' '.join(rubrics)} {' '.join(services)}".lower()
@@ -705,6 +740,43 @@ def predict_mcc_from_org(organization, building_name, address):
                 "matches": matches[:3],
                 "item": item
             })
+    candidates.sort(key=lambda x: (x["match_count"], x["score"]), reverse=True)
+
+    # Сигнал 1: код по ключевым словам (до учёта дополнительных источников)
+    keyword_code = candidates[0]["code"] if candidates else None
+
+    # Сигнал 2: основная рубрика 2ГИС
+    rubric_code = None
+    primary_text = ' '.join(extra.get('primary_rubrics', [])).lower()
+    if primary_text:
+        best_rubric = None
+        for item in MCC_DATABASE:
+            score, _, match_count = calculate_relevance(primary_text, item["keywords"])
+            if match_count > 0 and (best_rubric is None or (match_count, score) > best_rubric[0]):
+                best_rubric = ((match_count, score), item["code"])
+        rubric_code = best_rubric[1] if best_rubric else None
+
+    # Сигнал 3: теги OpenStreetMap
+    osm_code = osm.get('code')
+    if osm_code and not any(i['code'] == osm_code for i in MCC_DATABASE):
+        osm_code = None
+
+    # Дополнительные источники усиливают кандидата как ещё одно совпадение
+    for signal_code, label in ((rubric_code, "рубрика"), (osm_code, "OSM")):
+        if not signal_code:
+            continue
+        existing = next((c for c in candidates if c["code"] == signal_code), None)
+        if existing:
+            existing["score"] += 15
+            existing["match_count"] += 1
+            existing["matches"] = (existing["matches"] + [label])[:4]
+        else:
+            item = next(i for i in MCC_DATABASE if i["code"] == signal_code)
+            candidates.append({
+                "code": item["code"], "name": item["name"], "description": item["description"],
+                "score": 15, "match_count": 1, "matches": [label], "item": item
+            })
+    candidates.sort(key=lambda x: (x["match_count"], x["score"]), reverse=True)
 
     if not candidates:
         return {
@@ -716,25 +788,36 @@ def predict_mcc_from_org(organization, building_name, address):
             "suggestions": get_suggestions(search_text)
         }
 
-    candidates.sort(key=lambda x: (x["match_count"], x["score"]), reverse=True)
     best = candidates[0]
     confidence = min(98, 50 + best["match_count"] * 5 + best["score"] // 2)
 
-    # --- НОВОЕ: улучшаем через GigaChat ---
+    # Контекст из дополнительных источников для GigaChat
+    context_parts = []
+    if extra.get('primary_rubrics'):
+        context_parts.append("Основная рубрика 2ГИС: " + ', '.join(extra['primary_rubrics']))
+    if osm.get('evidence'):
+        context_parts.append("OpenStreetMap: " + osm['evidence'])
+    extra_context = '\n'.join(context_parts)
+
+    # --- улучшаем через GigaChat ---
     gigachat_result = enhance_with_gigachat(
         org_name=org_name,
         rubrics=rubrics,
         services=services,
         mcc_candidates=candidates[:5],
         current_mcc_code=best["code"],
-        current_mcc_name=best["name"]
+        current_mcc_name=best["name"],
+        extra_context=extra_context,
+        allowed_products=applicable_products(best["code"])[0]
     )
 
+    gigachat_code = None
     if gigachat_result and gigachat_result.get('mcc_code'):
+        gigachat_code = str(gigachat_result['mcc_code'])
         # Если GigaChat предложил другой код, ищем его в базе
-        if gigachat_result['mcc_code'] != best["code"]:
+        if gigachat_code != best["code"]:
             for item in MCC_DATABASE:
-                if item['code'] == gigachat_result['mcc_code']:
+                if item['code'] == gigachat_code:
                     best = {
                         "code": item["code"],
                         "name": item["name"],
@@ -752,6 +835,25 @@ def predict_mcc_from_org(organization, building_name, address):
         gigachat_explanation = ''
         gigachat_products = []
 
+    # POS-кредитование не предлагается категориям, для которых оно не разрешено (списки в products.py)
+    gigachat_products = clean_product_list(gigachat_products, best["code"])
+    gigachat_explanation = clean_product_text(gigachat_explanation, best["code"])
+
+    # Согласие источников: сколько из давших ответ предложили итоговый код
+    names = {i['code']: i['name'] for i in MCC_DATABASE}
+    osm_status = osm.get('status', 'disabled')
+    sources = [
+        {"name": "2ГИС: ключевые слова", "code": keyword_code},
+        {"name": "2ГИС: основная рубрика", "code": rubric_code},
+        {"name": "OpenStreetMap", "code": osm_code, "status": osm_status},
+        {"name": "GigaChat", "code": gigachat_code},
+    ]
+    for s in sources:
+        s["code_name"] = names.get(s["code"], "") if s["code"] else ""
+        s["agrees"] = bool(s["code"]) and s["code"] == best["code"]
+    answered = [s for s in sources if s["code"]]
+    agreement = {"agree": sum(1 for s in answered if s["agrees"]), "total": len(answered)}
+
     return {
         "code": best["code"],
         "name": best["name"],
@@ -762,8 +864,11 @@ def predict_mcc_from_org(organization, building_name, address):
         "match_count": best["match_count"],
         "total_candidates": len(candidates),
         "gigachat_explanation": gigachat_explanation,
-        "gigachat_products": gigachat_products
+        "gigachat_products": gigachat_products,
+        "sources": sources,
+        "agreement": agreement
     }
+
 
 def get_suggestions(text):
     """Возвращает подсказки на основе частичных совпадений"""
@@ -940,11 +1045,35 @@ def search_organization():
     # Получаем рубрики и услуги
     rubrics, services = get_rubrics_and_services(organization)
 
+    # Дополнительные данные 2ГИС и OpenStreetMap
+    extra = extract_extra_info(organization)
+    if extra.get('lat') is None or extra.get('lon') is None:
+        extra['lat'], extra['lon'] = geocode_address(address)
+        source = 'геокодер по адресу'
+    else:
+        source = 'карточка организации'
+    if extra.get('lat') is not None:
+        logger.info(f"📌 Координаты точки: {extra['lat']}, {extra['lon']} ({source})")
+    else:
+        logger.warning("⚠️ Координаты точки определить не удалось")
+    osm = osm_lookup(
+        extra.get('lat'), extra.get('lon'), organization.get('name', ''),
+        {i['code']: i['name'] for i in MCC_DATABASE}
+    )
+
+    # Сведения о юрлице (форма, статус, ОКВЭД); ИНН наружу не выводится
+    company = lookup_company(
+        organization.get('name', ''), extra.get('brand', ''),
+        f"{organization.get('address_name', '')} {address}"
+    )
+
     # Определяем MCC-код
     mcc_result = predict_mcc_from_org(
         organization,
         building_info.get('name', ''),
-        building_info.get('address', '')
+        building_info.get('address', ''),
+        osm=osm,
+        extra=extra
     )
 
     return jsonify({
@@ -955,8 +1084,196 @@ def search_organization():
             "rubrics": rubrics,
             "services": services[:15]
         },
-        "mcc": mcc_result
+        "mcc": mcc_result,
+        "extra": {
+            "brand": extra.get('brand', ''),
+            "schedule": extra.get('schedule', ''),
+            "lat": extra.get('lat'),
+            "lon": extra.get('lon'),
+            "org_id": organization.get('id', ''),
+            "query_address": address,
+            "nearby": osm.get('nearby', []),
+            "osm_status": osm.get('status', 'disabled'),
+            "company": company.get('info'),
+            "company_state": company.get('state', 'disabled')
+        }
     })
+
+
+DGIS_GEOCODE_URL = "https://catalog.api.2gis.com/3.0/items/geocode"
+
+
+def geocode_address(address):
+    """
+    Координаты адреса (lat, lon) через геокодер 2ГИС; запасной путь — поиск здания в /3.0/items.
+    Возвращает (None, None), если определить не удалось.
+    """
+    attempts = (
+        (DGIS_GEOCODE_URL, {'q': address, 'fields': 'items.point', 'page_size': 1}),
+        (DGIS_ITEMS_URL, {'q': address, 'type': 'building', 'fields': 'items.point', 'page_size': 1}),
+    )
+    for url, params in attempts:
+        try:
+            response = requests.get(url, params={**params, 'key': DGIS_API_KEY}, timeout=10)
+            if response.status_code != 200:
+                logger.warning(f"⚠️ Геокодирование адреса: {response.status_code} ({url.rsplit('/', 1)[-1]})")
+                continue
+            for item in response.json().get('result', {}).get('items', []):
+                point = item.get('point') if isinstance(item.get('point'), dict) else {}
+                if point.get('lat') is not None and point.get('lon') is not None:
+                    return point['lat'], point['lon']
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка геокодирования адреса: {e}")
+    return None, None
+
+
+DGIS_BYID_URL = "https://catalog.api.2gis.com/3.0/items/byid"
+
+
+def dgis_byid_get(params):
+    """Запрос к /3.0/items/byid (несколько id через запятую) с ключом приложения."""
+    return requests.get(DGIS_BYID_URL, params={**params, 'key': DGIS_API_KEY}, timeout=10)
+
+
+def dgis_get(params):
+    """Запрос к каталогу 2ГИС с ключом приложения."""
+    return requests.get(DGIS_ITEMS_URL, params={**params, 'key': DGIS_API_KEY}, timeout=10)
+
+
+def quick_mcc(name, rubrics, primary_rubrics):
+    """
+    Быстрое определение МСС без GigaChat (для соседних организаций).
+    Сигналы: ключевые слова по названию и рубрикам; основная рубрика.
+    Возвращает (код, название, надёжность 0..1) или None.
+    """
+    def best(text):
+        found = None
+        for item in MCC_DATABASE:
+            score, _, count = calculate_relevance(text, item["keywords"])
+            if count > 0 and (found is None or (count, score) > found[0]):
+                found = ((count, score), item)
+        return found[1] if found else None
+
+    by_text = best(f"{name} {' '.join(rubrics)}".lower())
+    by_rubric = best(' '.join(primary_rubrics).lower()) if primary_rubrics else None
+    if by_text and by_rubric:
+        if by_text["code"] == by_rubric["code"]:
+            return by_text["code"], by_text["name"], 1.0
+        return by_rubric["code"], by_rubric["name"], 0.3  # при расхождении доверяем основной рубрике
+    chosen = by_rubric or by_text
+    return (chosen["code"], chosen["name"], 0.5) if chosen else None
+
+
+@app.route('/find_partners', methods=['POST'])
+def find_partners():
+    """Ближайшие торговые точки в радиусе и три наиболее перспективных партнёра."""
+    data = request.get_json() or {}
+    try:
+        lat, lon = float(data.get('lat')), float(data.get('lon'))
+    except (TypeError, ValueError):
+        lat, lon = geocode_address(data.get('address', '')) if data.get('address') else (None, None)
+        if lat is None:
+            return jsonify({"success": False, "error": "Не удалось определить координаты торговой точки"})
+        logger.info(f"📌 Координаты точки определены геокодером: {lat}, {lon}")
+    logger.info(f"🔎 Поиск организаций в радиусе {partners_service.RADIUS_M} м от {lat}, {lon}")
+
+    org_id, refresh = data.get('org_id'), bool(data.get('refresh'))
+    radius = partners_service.RADIUS_M
+    key = partners_cache.make_key(org_id, lat, lon, radius)
+    cached = None if refresh else partners_cache.get(key)
+
+    def response(payload, created, from_cache):
+        return jsonify({**payload, "success": True, "radius": radius, "cached": from_cache,
+                        "cached_at": datetime.datetime.fromtimestamp(created).strftime('%d.%m.%Y %H:%M')})
+
+    # Повторное нажатие по той же точке: готовый результат без обращения к 2ГИС и GigaChat
+    if cached and cached.get('result') is not None:
+        logger.info("💾 Партнёры взяты из хранилища (запросы к 2ГИС и GigaChat не выполнялись)")
+        return response(cached['result'], cached['created'], True)
+
+    if cached and cached.get('candidates') is not None:
+        # Данные 2ГИС есть, а выбор GigaChat в прошлый раз не удался: повторяем только его
+        logger.info("💾 Данные 2ГИС взяты из хранилища, повторяется только выбор GigaChat")
+        candidates, found = cached['candidates'], cached['found']
+    else:
+        # Шаг 1: организации в радиусе (базовые поля, несколько страниц)
+        items = partners_service.fetch_nearby_pages(dgis_get, lat, lon)
+        if items is None:
+            return jsonify({"success": False, "error": "Не удалось получить данные 2ГИС о соседних организациях. Повторите попытку позже."})
+        found = len(items)
+
+        # Шаг 2: первичный отбор по близости и названию; шаг 3: запрос рубрик и деталей только для отобранных
+        selected = partners_service.primary_selection(items, lat, lon, org_id, quick_mcc)
+        details = partners_service.fetch_details(dgis_byid_get, selected)
+        logger.info(f"📋 Детали получены для {len(details)} из {len(selected)} организаций")
+
+        # Шаг 4: расчёт оценки по критериям
+        candidates = partners_service.build_candidates(
+            partners_service.merge_details(selected, details), lat, lon, org_id, quick_mcc)
+
+    if not candidates:
+        payload = {"partners": [], "found": found, "ai": False}
+        partners_cache.put(key, {"candidates": [], "found": found, "result": payload})
+        return response(payload, time.time(), False)
+
+    shortlist = partners_service.make_shortlist(candidates)
+    base = {"name": data.get('org_name', ''), "mcc_code": data.get('mcc_code', ''), "mcc_name": data.get('mcc_name', '')}
+    result, used_ai = partners_service.pick_partners(
+        shortlist, lambda sl: choose_partners_with_gigachat(base, sl))
+    payload = {"partners": result, "found": found, "ai": used_ai}
+    # Итог сохраняем, только если выбор делал GigaChat; иначе храним лишь данные 2ГИС
+    partners_cache.put(key, {"candidates": candidates, "found": found, "result": payload if used_ai else None})
+    return response(payload, time.time(), False)
+
+
+# ---------- Карта: выбор торговой точки кликом ----------
+# Ключ карты передаётся в браузер, поэтому его лучше сделать отдельным и только для сервисов карты
+DGIS_MAP_KEY = os.getenv('DGIS_MAP_KEY') or DGIS_API_KEY
+MAP_CLICK_RADIUS_M = int(os.getenv('MAP_CLICK_RADIUS_M', '40'))
+
+
+@app.route('/map_config')
+def map_config():
+    """Настройки карты для браузера: ключ MapGL и начальный центр (Владивосток)."""
+    return jsonify({"key": DGIS_MAP_KEY, "center": [131.8869, 43.1155], "zoom": 15})
+
+
+@app.route('/organizations_at_point', methods=['POST'])
+def organizations_at_point():
+    """Организации рядом с точкой, на которую кликнули на карте (ближайшие первыми)."""
+    data = request.get_json() or {}
+    try:
+        lat, lon = float(data.get('lat')), float(data.get('lon'))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "Не переданы координаты"})
+
+    base = {'type': 'branch', 'point': f'{lon},{lat}', 'radius': MAP_CLICK_RADIUS_M,
+            'sort': 'distance', 'page_size': 10}
+    items = None
+    for fields in ('items.id,items.name,items.address_name,items.full_address_name,items.point',
+                   'items.id,items.name,items.address_name,items.point'):
+        try:
+            response = dgis_get({**base, 'fields': fields})
+        except Exception as e:
+            logger.warning(f"⚠️ Поиск организаций по клику: {e}")
+            break
+        if response.status_code == 200:
+            items = response.json().get('result', {}).get('items', []) or []
+            break
+        logger.warning(f"⚠️ Поиск организаций по клику: {response.status_code}")
+    if items is None:
+        return jsonify({"success": False, "error": "Не удалось получить данные 2ГИС. Повторите попытку."})
+
+    result = []
+    for item in items:
+        point = item.get('point') if isinstance(item.get('point'), dict) else {}
+        result.append({
+            "name": item.get('name', ''),
+            "address": item.get('full_address_name') or item.get('address_name', ''),
+            "lat": point.get('lat'), "lon": point.get('lon')
+        })
+    logger.info(f"🗺️ Клик по карте {lat}, {lon}: найдено организаций {len(result)}")
+    return jsonify({"success": True, "organizations": result})
 
 
 @app.route('/send_feedback', methods=['POST'])

@@ -1286,3 +1286,189 @@ input[type="file"]::-webkit-file-upload-button:hover {
         gap: 5px;
     }
 }
+
+
+/* === ТЕМЫ === */
+:root {
+    color-scheme: dark;
+    --fg-strong: rgba(255, 255, 255, 0.88);
+    --fg-medium: rgba(255, 255, 255, 0.68);
+    --fg-faint: rgba(255, 255, 255, 0.48);
+    --surface-soft: rgba(255, 255, 255, 0.06);
+    --line-soft: rgba(255, 255, 255, 0.12);
+    --accent-text: #b0ffc0;
+    --danger-text: #ff6b6b;
+}
+
+html[data-theme="light"] {
+    color-scheme: light;
+    --fg-strong: rgba(18, 44, 28, 0.92);
+    --fg-medium: rgba(18, 44, 28, 0.72);
+    --fg-faint: rgba(18, 44, 28, 0.52);
+    --surface-soft: rgba(20, 80, 45, 0.07);
+    --line-soft: rgba(20, 80, 45, 0.16);
+    --accent-text: #17692f;
+    --danger-text: #c62828;
+}
+
+body, .liquid-glass, .header, .main-card, .result-card, .modal-content, .liquid-input {
+    transition: background 0.4s ease, color 0.4s ease, border-color 0.4s ease;
+}
+
+/* Светлая тема */
+html[data-theme="light"] body { background: linear-gradient(145deg, #eef8f1 0%, #d3eadb 100%); }
+html[data-theme="light"] .liquid-blob { background: rgba(40, 160, 80, 0.08); }
+html[data-theme="light"] .liquid-glass,
+html[data-theme="light"] .main-card,
+html[data-theme="light"] .result-card {
+    background: rgba(255, 255, 255, 0.62);
+    border-color: rgba(40, 140, 80, 0.25);
+    box-shadow: 0 10px 30px rgba(30, 100, 60, 0.12);
+}
+html[data-theme="light"] .header {
+    background: rgba(255, 255, 255, 0.7);
+    border-color: rgba(40, 140, 80, 0.3);
+    color: #12301d;
+}
+html[data-theme="light"] .header p,
+html[data-theme="light"] .feedback-description,
+html[data-theme="light"] .instruction-content,
+html[data-theme="light"] .attachments-hint ul,
+html[data-theme="light"] .building-address,
+html[data-theme="light"] .mcc-description { color: rgba(18, 52, 30, 0.85); }
+html[data-theme="light"] .building-purpose,
+html[data-theme="light"] .step-hint,
+html[data-theme="light"] .feedback-description small,
+html[data-theme="light"] .footer { color: rgba(18, 52, 30, 0.55); }
+html[data-theme="light"] .form-group label { color: #1d5a33; }
+html[data-theme="light"] .liquid-input {
+    color: #12301d;
+    background: rgba(255, 255, 255, 0.85);
+    border-color: rgba(40, 140, 80, 0.35);
+}
+html[data-theme="light"] .liquid-input:hover,
+html[data-theme="light"] .liquid-input:focus { background: #ffffff; border-color: rgba(30, 130, 70, 0.7); }
+html[data-theme="light"] .liquid-input::placeholder { color: rgba(18, 60, 32, 0.4); }
+html[data-theme="light"] .result-header h3,
+html[data-theme="light"] .org-name,
+html[data-theme="light"] .mcc-code,
+html[data-theme="light"] .confidence-label { color: #12301d; }
+html[data-theme="light"] .ios-badge,
+html[data-theme="light"] .result-icon,
+html[data-theme="light"] .building-name,
+html[data-theme="light"] .services-title,
+html[data-theme="light"] .instruction-section h3,
+html[data-theme="light"] .step-title,
+html[data-theme="light"] .attachments-hint div,
+html[data-theme="light"] .hint-icon,
+html[data-theme="light"] .rubric-tag,
+html[data-theme="light"] .service-tag,
+html[data-theme="light"] .match-tag,
+html[data-theme="light"] .file-item { color: #17692f; }
+html[data-theme="light"] .mcc-name { color: #1c7a38; }
+html[data-theme="light"] .building-info { background: rgba(40, 140, 80, 0.1); }
+html[data-theme="light"] .instruction-step { background: rgba(40, 140, 80, 0.1); }
+html[data-theme="light"] .example { background: rgba(20, 80, 45, 0.08); }
+html[data-theme="light"] .confidence-bar { background: rgba(20, 80, 45, 0.12); }
+html[data-theme="light"] .step-number { color: #ffffff; background: #17692f; }
+html[data-theme="light"] .error-message { color: #7f1d1d; }
+html[data-theme="light"] .modal-overlay { background: rgba(10, 30, 18, 0.45); }
+html[data-theme="light"] .modal-content {
+    color: #12301d;
+    background: rgba(255, 255, 255, 0.97);
+    border-color: rgba(40, 140, 80, 0.3);
+}
+html[data-theme="light"] .modal-header { border-bottom-color: rgba(40, 140, 80, 0.3); }
+html[data-theme="light"] .result-header { border-bottom-color: rgba(40, 140, 80, 0.3); }
+html[data-theme="light"] .wrong-mcc-button { color: #b42318; background: rgba(255, 100, 100, 0.14); }
+html[data-theme="light"] .wrong-mcc-button:hover { color: #912018; background: rgba(255, 100, 100, 0.24); }
+html[data-theme="light"] .modal-close { color: #b42318; }
+html[data-theme="light"] input[type="file"]::-webkit-file-upload-button { color: #12301d; }
+
+/* === ПЕРЕКЛЮЧАТЕЛЬ ТЕМЫ === */
+.theme-toggle {
+    pointer-events: auto;
+    position: relative;
+    width: 76px;
+    height: 38px;
+    padding: 0;
+    border-radius: 38px;
+    border: 1px solid rgba(100, 255, 140, 0.4);
+    background: linear-gradient(135deg, #0b2216 0%, #1c4a2d 100%);
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.45), 0 8px 22px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    overflow: hidden;
+    transition: background 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease;
+}
+.theme-toggle:focus-visible { outline: 2px solid #70ff90; outline-offset: 3px; }
+.theme-toggle .tt-stars span {
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: #e6fff0;
+    opacity: 0.9;
+    transition: opacity 0.4s ease, transform 0.5s ease;
+    animation: ttTwinkle 2.4s infinite ease-in-out;
+}
+.theme-toggle .tt-stars span:nth-child(1) { left: 46px; top: 10px; }
+.theme-toggle .tt-stars span:nth-child(2) { left: 56px; top: 22px; width: 2px; height: 2px; animation-delay: 0.6s; }
+.theme-toggle .tt-stars span:nth-child(3) { left: 63px; top: 12px; width: 2px; height: 2px; animation-delay: 1.2s; }
+.theme-toggle .tt-clouds span {
+    position: absolute;
+    height: 8px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.85);
+    opacity: 0;
+    transform: translateX(10px);
+    transition: opacity 0.4s ease, transform 0.5s ease;
+}
+.theme-toggle .tt-clouds span:nth-child(1) { left: 10px; top: 10px; width: 18px; }
+.theme-toggle .tt-clouds span:nth-child(2) { left: 20px; top: 21px; width: 14px; }
+.theme-toggle .tt-thumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, #f4f7ff, #bfcdf5);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45), inset 0 -2px 4px rgba(90, 110, 170, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.5s cubic-bezier(0.3, 1.5, 0.5, 1), background 0.5s ease, box-shadow 0.5s ease;
+}
+.theme-toggle .tt-thumb svg {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    transition: opacity 0.35s ease, transform 0.5s ease;
+}
+.theme-toggle .tt-moon { color: #4a5a94; opacity: 1; transform: rotate(0deg) scale(1); }
+.theme-toggle .tt-sun { color: #a35a00; opacity: 0; transform: rotate(-90deg) scale(0.5); }
+
+html[data-theme="light"] .theme-toggle {
+    background: linear-gradient(135deg, #8fd0ff 0%, #d7f0ff 100%);
+    border-color: rgba(255, 170, 0, 0.55);
+    box-shadow: inset 0 2px 6px rgba(40, 100, 160, 0.25), 0 8px 22px rgba(40, 120, 90, 0.2);
+}
+html[data-theme="light"] .theme-toggle .tt-thumb {
+    transform: translateX(38px);
+    background: linear-gradient(145deg, #ffe27a, #ffb300);
+    box-shadow: 0 3px 12px rgba(255, 170, 0, 0.6), inset 0 -2px 4px rgba(190, 110, 0, 0.35);
+}
+html[data-theme="light"] .theme-toggle .tt-moon { opacity: 0; transform: rotate(90deg) scale(0.5); }
+html[data-theme="light"] .theme-toggle .tt-sun { opacity: 1; transform: rotate(0deg) scale(1); }
+html[data-theme="light"] .theme-toggle .tt-stars span { opacity: 0; transform: translateY(-8px); animation: none; }
+html[data-theme="light"] .theme-toggle .tt-clouds span { opacity: 1; transform: translateX(0); }
+
+@keyframes ttTwinkle {
+    0%, 100% { opacity: 0.9; }
+    50% { opacity: 0.3; }
+}
+
+/* Светлая тема: основная кнопка плотнее, чтобы не выглядела выцветшей */
+html[data-theme="light"] .ios-button { background: rgba(28, 110, 55, 0.94); border-color: rgba(30, 130, 70, 0.6); }
+html[data-theme="light"] .ios-button:hover { background: rgba(22, 125, 58, 1); }
+html[data-theme="light"] .recommendations-button { background: rgba(28, 110, 55, 0.94); }

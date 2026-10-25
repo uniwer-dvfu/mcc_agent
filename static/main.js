@@ -19,6 +19,8 @@ const fileInput = document.getElementById('attachments');
 const fileList = document.getElementById('fileList');
 
 let currentMCCData = null;
+let currentCompany = { state: 'disabled', info: null };
+let currentGeo = null;
 
 // Отображение выбранных файлов
 fileInput.addEventListener('change', function() {
@@ -83,39 +85,39 @@ submitFeedback.addEventListener('click', async () => {
     const files = fileInput.files;
 
     if (!name) {
-        feedbackStatus.innerHTML = '<div style="color: #ff6b6b;">❌ Укажите ваше имя</div>';
+        feedbackStatus.innerHTML = '<div style="color:var(--danger-text);">❌ Укажите ваше имя</div>';
         return;
     }
 
     if (!email || !email.includes('@') || !email.includes('.')) {
-        feedbackStatus.innerHTML = '<div style="color: #ff6b6b;">❌ Укажите корректный email</div>';
+        feedbackStatus.innerHTML = '<div style="color:var(--danger-text);">❌ Укажите корректный email</div>';
         return;
     }
 
     // Валидация табельного номера (7 цифр)
     if (!badgeNumber) {
-        feedbackStatus.innerHTML = '<div style="color: #ff6b6b;">❌ Укажите табельный номер (7 цифр)</div>';
+        feedbackStatus.innerHTML = '<div style="color:var(--danger-text);">❌ Укажите табельный номер (7 цифр)</div>';
         return;
     }
 
     if (!/^\d{7}$/.test(badgeNumber)) {
-        feedbackStatus.innerHTML = '<div style="color: #ff6b6b;">❌ Табельный номер должен состоять из 7 цифр</div>';
+        feedbackStatus.innerHTML = '<div style="color:var(--danger-text);">❌ Табельный номер должен состоять из 7 цифр</div>';
         return;
     }
 
     if (!message || message.length < 10) {
-        feedbackStatus.innerHTML = '<div style="color: #ff6b6b;">❌ Сообщение должно содержать минимум 10 символов</div>';
+        feedbackStatus.innerHTML = '<div style="color:var(--danger-text);">❌ Сообщение должно содержать минимум 10 символов</div>';
         return;
     }
 
     // Проверка на наличие прикреплённых файлов
     if (files.length === 0) {
-        feedbackStatus.innerHTML = '<div style="color: #ff6b6b;">❌ Прикрепите файлы (терминальный чек, фото вывески и т.д.)</div>';
+        feedbackStatus.innerHTML = '<div style="color:var(--danger-text);">❌ Прикрепите файлы (терминальный чек, фото вывески и т.д.)</div>';
         return;
     }
 
     submitFeedback.disabled = true;
-    feedbackStatus.innerHTML = '<div style="color: #b0ffc0;">⏳ Отправка...</div>';
+    feedbackStatus.innerHTML = '<div style="color:var(--accent-text);">⏳ Отправка...</div>';
 
     const formData = new FormData();
     formData.append('name', name);
@@ -136,15 +138,15 @@ submitFeedback.addEventListener('click', async () => {
         const data = await response.json();
 
         if (data.success) {
-            feedbackStatus.innerHTML = `<div style="color: #70ff90;">✅ ${data.message}</div>`;
+            feedbackStatus.innerHTML = `<div style="color:var(--accent-text);">✅ ${data.message}</div>`;
             setTimeout(() => {
                 closeFeedbackModal();
             }, 3000);
         } else {
-            feedbackStatus.innerHTML = `<div style="color: #ff6b6b;">❌ ${data.error}</div>`;
+            feedbackStatus.innerHTML = `<div style="color:var(--danger-text);">❌ ${data.error}</div>`;
         }
     } catch (error) {
-        feedbackStatus.innerHTML = '<div style="color: #ff6b6b;">❌ Ошибка при отправке</div>';
+        feedbackStatus.innerHTML = '<div style="color:var(--danger-text);">❌ Ошибка при отправке</div>';
     } finally {
         submitFeedback.disabled = false;
     }
@@ -241,7 +243,7 @@ function showResult(data) {
                         </div>
                         ${data.building.purpose ? `<div class="building-purpose">${data.building.purpose}</div>` : ''}
                     </div>
-                    <div style="text-align: center; color: rgba(255,255,255,0.7); padding: 20px;">
+                    <div style="text-align: center; color:var(--fg-medium); padding: 20px;">
                         Организация с таким названием не найдена в этом здании
                     </div>
                 </div>
@@ -255,6 +257,17 @@ function showResult(data) {
     const mcc = data.mcc;
     const org = data.organization;
     const building = data.building;
+
+    currentGeo = {
+        lat: data.extra ? data.extra.lat : null,
+        lon: data.extra ? data.extra.lon : null,
+        org_id: data.extra ? data.extra.org_id : '',
+        address: data.extra ? data.extra.query_address : ''
+    };
+    currentCompany = {
+        state: (data.extra && data.extra.company_state) || 'disabled',
+        info: (data.extra && data.extra.company) || null
+    };
 
     // Сохраняем данные для кнопки "Неверный МСС"
     currentMCCData = {
@@ -297,14 +310,35 @@ function showResult(data) {
     let mccDescription = mcc.description ? `<div class="mcc-description">📋 ${mcc.description}</div>` : '';
 
     // Блоки GigaChat (вынесены в отдельную переменную)
+    // Справочная информация: бренд, график, ближайшие объекты
+    let extraHtml = '';
+    const extra = data.extra || {};
+    const extraRows = [];
+    if (extra.brand) extraRows.push(`<div>🏷️ <b>Бренд / сеть:</b> ${escapeHtml(extra.brand)}</div>`);
+    if (extra.schedule) extraRows.push(`<div>🕒 <b>График:</b> ${escapeHtml(extra.schedule)}</div>`);
+    if (extra.nearby && extra.nearby.length > 0) {
+        const items = extra.nearby.map(n =>
+            `<li>${escapeHtml(n.name)}${n.category ? ' — ' + escapeHtml(n.category) : ''}, ${n.distance_m} м</li>`
+        ).join('');
+        extraRows.push(`<div style="margin-top:6px;">📍 <b>Рядом (OpenStreetMap):</b><ul style="margin:4px 0 0 18px;">${items}</ul></div>`);
+    }
+    if (extraRows.length > 0) {
+        extraHtml = `
+            <div style="margin-top: 12px; padding: 12px 15px; background:var(--surface-soft); border-radius: 16px; text-align: left; font-size: 13px; color:var(--fg-strong); line-height: 1.6;">
+                ${extraRows.join('')}
+                <div style="margin-top:6px; font-size:11px; color:var(--fg-faint);">Данные: 2ГИС${extra.nearby && extra.nearby.length ? ', © участники OpenStreetMap' : ''}</div>
+            </div>
+        `;
+    }
+
     let gigachatHtml = '';
     if (mcc.gigachat_explanation) {
         gigachatHtml += `
             <div style="margin-top: 15px; padding: 15px; background: rgba(60,200,100,0.1); border-radius: 16px; border-left: 4px solid #4CAF50; text-align: left;">
-                <div style="font-weight: 600; color: #b0ffc0; margin-bottom: 8px;">
+                <div style="font-weight: 600; color:var(--accent-text); margin-bottom: 8px;">
                     🤖 Объяснение ИИ (GigaChat)
                 </div>
-                <p style="color: rgba(255,255,255,0.85); font-size: 14px; line-height: 1.5;">
+                <p style="color:var(--fg-strong); font-size: 14px; line-height: 1.5;">
                     ${escapeHtml(mcc.gigachat_explanation)}
                 </p>
             </div>
@@ -313,12 +347,12 @@ function showResult(data) {
     if (mcc.gigachat_products && mcc.gigachat_products.length > 0) {
         gigachatHtml += `
             <div style="margin-top: 15px; padding: 15px; background: rgba(30,100,50,0.3); border-radius: 16px; text-align: left;">
-                <div style="font-weight: 600; color: #b0ffc0; margin-bottom: 8px;">
+                <div style="font-weight: 600; color:var(--accent-text); margin-bottom: 8px;">
                     💡 Рекомендованные продукты (GigaChat)
                 </div>
                 <div style="display: flex; flex-wrap: wrap; gap: 8px;">
                     ${mcc.gigachat_products.map(p =>
-                        `<span style="background: rgba(60,200,100,0.2); padding: 4px 12px; border-radius: 20px; font-size: 13px; color: #d0ffd8; border: 1px solid rgba(80,255,120,0.3);">${escapeHtml(p)}</span>`
+                        `<span style="background: rgba(60,200,100,0.2); padding: 4px 12px; border-radius: 20px; font-size: 13px; color:var(--accent-text); border: 1px solid rgba(80,255,120,0.3);">${escapeHtml(p)}</span>`
                     ).join('')}
                 </div>
             </div>
@@ -346,6 +380,7 @@ function showResult(data) {
                 <div class="org-name">${org.name}</div>
                 <div class="rubrics">${rubricsHtml}</div>
                 ${servicesHtml}
+                ${extraHtml}
             </div>
 
             <div class="mcc-result">
@@ -363,12 +398,18 @@ function showResult(data) {
                     </div>
                 </div>
                 ${gigachatHtml}
-                <div style="display: flex; gap: 15px; justify-content: center; margin-top: 20px;">
+                <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-top: 20px;">
                     <button class="wrong-mcc-button" id="reportWrongMccBtn" onclick="reportWrongMCC()">
                         <span>🚫</span> Неверный МСС
                     </button>
                     <button class="recommendations-button" id="recommendationsBtn" onclick="showRecommendations()">
                         <span>📊</span> Рекомендации по продажам
+                    </button>
+                    <button class="recommendations-button" id="companyInfoBtn" onclick="showCompanyInfo()">
+                        <span>🏛️</span> Информация из DaData
+                    </button>
+                    <button class="recommendations-button" id="partnersBtn" onclick="showPartners()">
+                        <span>🤝</span> Партнёры рядом (500 м)
                     </button>
                 </div>
             </div>
@@ -563,34 +604,34 @@ function showRecommendationsModal(recommendations, businessName, mccCode, mccNam
             </div>
 
             <div style="margin-bottom: 10px; padding: 12px; background: rgba(60,200,100,0.15); border-radius: 16px;">
-                <div style="font-size: 14px; color: rgba(255,255,255,0.7);">Торговая точка:</div>
-                <div style="font-size: 18px; font-weight: 600; color: #b0ffc0;">${escapeHtml(businessName)}</div>
-                <div style="font-size: 13px; color: rgba(255,255,255,0.6); margin-top: 5px;">MCC: ${mccCode} — ${escapeHtml(mccName)}</div>
+                <div style="font-size: 14px; color:var(--fg-medium);">Торговая точка:</div>
+                <div style="font-size: 18px; font-weight: 600; color:var(--accent-text);">${escapeHtml(businessName)}</div>
+                <div style="font-size: 13px; color:var(--fg-faint); margin-top: 5px;">MCC: ${mccCode} — ${escapeHtml(mccName)}</div>
             </div>
 
             <div style="margin-bottom: 20px;">
                 <div style="background: rgba(60,200,100,0.1); border-radius: 16px; padding: 15px; margin-bottom: 12px;">
                     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
                         <span style="font-size: 24px;">💰</span>
-                        <span style="font-weight: 700; color: #b0ffc0;">POS-кредитование</span>
+                        <span style="font-weight: 700; color:var(--accent-text);">POS-кредитование</span>
                     </div>
-                    <p style="color: rgba(255,255,255,0.85); font-size: 14px; line-height: 1.5; white-space: pre-line;">${recommendations.posCreditMessage}</p>
+                    <p style="color:var(--fg-strong); font-size: 14px; line-height: 1.5; white-space: pre-line;">${recommendations.posCreditMessage}</p>
                 </div>
 
                 <div style="background: rgba(60,200,100,0.1); border-radius: 16px; padding: 15px; margin-bottom: 12px;">
                     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
                         <span style="font-size: 24px;">💬</span>
-                        <span style="font-weight: 700; color: #b0ffc0;">СберЧаевые</span>
+                        <span style="font-weight: 700; color:var(--accent-text);">СберЧаевые</span>
                     </div>
-                    <p style="color: rgba(255,255,255,0.85); font-size: 14px; line-height: 1.5; white-space: pre-line;">${recommendations.sberTipsMessage}</p>
+                    <p style="color:var(--fg-strong); font-size: 14px; line-height: 1.5; white-space: pre-line;">${recommendations.sberTipsMessage}</p>
                 </div>
 
                 <div style="background: linear-gradient(135deg, rgba(30,100,50,0.3), rgba(20,60,40,0.3)); border-radius: 16px; padding: 15px; border-left: 4px solid #4CAF50;">
                     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
                         <span style="font-size: 24px;">🎯</span>
-                        <span style="font-weight: 700; color: #b0ffc0;">Продажная рекомендация</span>
+                        <span style="font-weight: 700; color:var(--accent-text);">Продажная рекомендация</span>
                     </div>
-                    <p style="color: rgba(255,255,255,0.9); font-size: 14px; line-height: 1.5; white-space: pre-line;">${recommendations.generalMessage}</p>
+                    <p style="color:var(--fg-strong); font-size: 14px; line-height: 1.5; white-space: pre-line;">${recommendations.generalMessage}</p>
                 </div>
             </div>
 
@@ -627,6 +668,133 @@ async function showRecommendations() {
     }, 300);
 }
 
+// Поиск перспективных партнёров в радиусе 500 м
+async function showPartners(refresh = false) {
+    if (!currentMCCData || !currentGeo) {
+        showToast('❌ Сначала найдите торговую точку', true);
+        return;
+    }
+    const existing = document.getElementById('partnersModal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'partnersModal';
+    modal.className = 'modal-overlay';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2><span>🤝</span> Партнёры рядом</h2>
+                <div class="modal-close" onclick="document.getElementById('partnersModal').remove()">✕</div>
+            </div>
+            <div id="partnersBody" style="color:var(--fg-strong); font-size:14px;">⏳ Ищем организации в радиусе 500 м и анализируем их…</div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+    const body = modal.querySelector('#partnersBody');
+
+    try {
+        const response = await fetch('/find_partners', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                lat: currentGeo.lat, lon: currentGeo.lon, org_id: currentGeo.org_id, address: currentGeo.address, refresh: refresh,
+                org_name: currentMCCData.org_name,
+                mcc_code: currentMCCData.mcc_code, mcc_name: currentMCCData.mcc_name
+            })
+        });
+        const result = await response.json();
+        if (!result.success) {
+            body.textContent = result.error || 'Не удалось выполнить поиск.';
+            return;
+        }
+        if (!result.partners || result.partners.length === 0) {
+            body.textContent = `В радиусе ${result.radius} м подходящих организаций не найдено.`;
+            return;
+        }
+        const cards = result.partners.map((p, i) => `
+            <div style="padding:12px 14px; margin-bottom:10px; background:rgba(60,200,100,0.12); border-radius:14px; border-left:3px solid #4CAF50;">
+                <div style="font-weight:700; color:var(--accent-text); font-size:15px;">${i + 1}. ${escapeHtml(p.name)}</div>
+                <div style="font-size:12px; color:var(--fg-faint); margin-top:2px;">📍 ${escapeHtml(p.address)} · ${p.distance_m} м</div>
+                <div style="font-size:12px; color:var(--fg-medium); margin-top:4px;">МСС ${escapeHtml(p.mcc_code)} — ${escapeHtml(p.mcc_name)}</div>
+                <div style="margin-top:6px;">${(p.products || []).map(x => `<span class="rubric-tag">${escapeHtml(x)}</span>`).join('')}</div>
+                <p style="margin:8px 0 0; font-size:13px; line-height:1.5; color:var(--fg-strong);">${escapeHtml(p.reason)}</p>
+            </div>`).join('');
+        const note = result.ai
+            ? 'Отбор: расчёт по шести критериям и анализ GigaChat.'
+            : 'GigaChat недоступен: показан отбор по расчёту.';
+        body.innerHTML = `
+            <div style="font-size:12px; color:var(--fg-faint); margin-bottom:10px;">Проанализировано организаций в радиусе ${result.radius} м: ${result.found}</div>
+            ${cards}
+            <div style="margin-top:8px; font-size:11px; color:var(--fg-faint);">${note} Данные: 2ГИС${result.cached_at ? ', ' + (result.cached ? 'сохранены ' : 'получены ') + escapeHtml(result.cached_at) : ''}.
+                ${result.cached ? '<a href="#" id="partnersRefresh" style="color:var(--accent-text); margin-left:6px;">Обновить</a>' : ''}</div>`;
+        const refreshLink = body.querySelector('#partnersRefresh');
+        if (refreshLink) refreshLink.addEventListener('click', (e) => { e.preventDefault(); showPartners(true); });
+    } catch (e) {
+        body.textContent = 'Ошибка соединения с сервером. Повторите попытку.';
+    }
+}
+
+// Информация о юридическом лице из DaData (ИНН используется только для поиска и не выводится)
+function showCompanyInfo() {
+    const existing = document.getElementById('companyInfoModal');
+    if (existing) existing.remove();
+
+    const { state, info } = currentCompany;
+    const name = currentMCCData ? currentMCCData.org_name : '';
+    let body = '';
+    if (state === 'ok' && info) {
+        const card = (e, accent) => {
+            const meta = [e.form, e.status, e.okved ? 'ОКВЭД ' + e.okved : ''].filter(Boolean).map(escapeHtml).join(' · ');
+            return `
+            <div style="padding:10px 12px; margin-bottom:8px; background:${accent ? 'rgba(60,200,100,0.18)' : 'var(--surface-soft)'}; border-radius:12px; ${accent ? 'border-left:3px solid #4CAF50;' : ''}">
+                <div style="font-weight:600; color:${accent ? 'var(--accent-text)' : 'var(--fg-strong)'}; font-size:14px;">${escapeHtml(e.name)}${e.branch ? ' <span style="font-weight:400; color:var(--fg-faint);">(филиал)</span>' : ''}</div>
+                ${e.address ? `<div style="font-size:12px; color:var(--fg-faint); margin-top:2px;">📍 ${escapeHtml(e.address)}</div>` : ''}
+                ${meta ? `<div style="font-size:13px; color:var(--fg-strong); margin-top:4px;">${meta}</div>` : ''}
+            </div>`;
+        };
+        const atAddress = info.at_address || [];
+        const others = info.others || [];
+        body = `<div style="font-size:13px; font-weight:600; color:var(--accent-text); margin:4px 0 8px;">По адресу точки</div>` +
+            (atAddress.length
+                ? atAddress.map(e => card(e, true)).join('')
+                : `<p style="font-size:13px; color:var(--fg-medium); margin:0 0 8px;">Совпадений по адресу нет.</p>`);
+        if (others.length) {
+            body += `<div style="font-size:13px; font-weight:600; color:var(--fg-strong); margin:14px 0 8px;">Другие точки и юридические лица с таким названием</div>` +
+                others.map(e => card(e, false)).join('');
+        }
+    } else {
+        const messages = {
+            not_found: 'Юридическое лицо торговой точки однозначно определить не удалось, поэтому дополнительные сведения не запрашивались.',
+            disabled: 'Источник не подключён: в настройках приложения не задан ключ DaData.',
+            error: 'Источник временно недоступен. Повторите поиск позже.'
+        };
+        body = `<p style="color:var(--fg-strong); font-size:14px; line-height:1.5;">${messages[state] || messages.not_found}</p>`;
+    }
+
+    const modal = document.createElement('div');
+    modal.id = 'companyInfoModal';
+    modal.className = 'modal-overlay';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 560px;">
+            <div class="modal-header">
+                <h2><span>🏛️</span> Информация из DaData</h2>
+                <div class="modal-close" onclick="document.getElementById('companyInfoModal').remove()">✕</div>
+            </div>
+            <div style="margin-bottom: 15px; padding: 12px; background: rgba(60,200,100,0.15); border-radius: 16px;">
+                <div style="font-size: 14px; color:var(--fg-medium);">Торговая точка:</div>
+                <div style="font-size: 18px; font-weight: 600; color:var(--accent-text);">${escapeHtml(name)}</div>
+            </div>
+            ${body}
+            <div style="margin-top:14px; font-size:11px; color:var(--fg-faint);">Источник: ЕГРЮЛ / ЕГРИП через DaData</div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+}
+
 // Функция для экранирования HTML
 function escapeHtml(str) {
     if (!str) return '';
@@ -637,3 +805,108 @@ function escapeHtml(str) {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
 }
+
+// Выбор торговой точки на карте 2ГИС (MapGL JS API)
+(function () {
+    if (window.__mapPickerInit) return;  // защита от двойного подключения
+    window.__mapPickerInit = true;
+    const toggleBtn = document.getElementById('mapToggleBtn');
+    const panel = document.getElementById('mapPanel');
+    const resultsBox = document.getElementById('mapResults');
+    if (!toggleBtn || !panel) return;
+
+    let map = null;
+    let marker = null;
+    let loading = false;
+
+    function loadMapgl() {
+        return new Promise((resolve, reject) => {
+            if (window.mapgl) return resolve();
+            const script = document.createElement('script');
+            script.src = 'https://mapgl.2gis.com/api/js/v1';
+            script.async = true;
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error('скрипт не загрузился (сеть, блокировщик или доступ запрещён)'));
+            setTimeout(() => reject(new Error('превышено время ожидания 15 секунд')), 15000);
+            document.head.appendChild(script);
+        });
+    }
+
+    function showMessage(text) {
+        resultsBox.innerHTML = `<div style="font-size:13px; color:var(--fg-medium);">${escapeHtml(text)}</div>`;
+    }
+
+    function selectOrganization(org) {
+        orgNameInput.value = org.name;
+        addressInput.value = org.address;
+        resultsBox.innerHTML = `<div style="font-size:13px; color:var(--accent-text);">✅ Выбрано: ${escapeHtml(org.name)}, ${escapeHtml(org.address)}. Нажмите «Найти и определить MCC».</div>`;
+    }
+
+    async function onMapClick(lngLat) {
+        const [lon, lat] = lngLat;
+        if (marker) marker.destroy();
+        marker = new mapgl.Marker(map, { coordinates: [lon, lat] });
+        showMessage('⏳ Ищем организации рядом…');
+        try {
+            const response = await fetch('/organizations_at_point', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lat, lon })
+            });
+            const data = await response.json();
+            if (!data.success) return showMessage(data.error || 'Не удалось выполнить поиск.');
+            if (!data.organizations.length) return showMessage('Рядом с этой точкой организаций не найдено. Кликните ближе к вывеске или входу.');
+            resultsBox.innerHTML = '';
+            data.organizations.forEach(org => {
+                const row = document.createElement('div');
+                row.style.cssText = 'padding:8px 12px; margin-bottom:6px; background:var(--surface-soft); border-radius:12px; cursor:pointer; font-size:13px;';
+                row.innerHTML = `<b style="color:var(--accent-text);">${escapeHtml(org.name)}</b><div style="color:var(--fg-faint); font-size:12px;">${escapeHtml(org.address)}</div>`;
+                row.addEventListener('click', () => selectOrganization(org));
+                resultsBox.appendChild(row);
+            });
+        } catch (e) {
+            showMessage('Ошибка соединения с сервером.');
+        }
+    }
+
+    async function initMap() {
+        if (map || loading) return;
+        loading = true;
+        showMessage('⏳ Загружаем карту…');
+        let step = 'настройки карты';
+        try {
+            const configResponse = await fetch('/map_config');
+            if (!configResponse.ok) throw new Error('сервер вернул ' + configResponse.status);
+            const config = await configResponse.json();
+            if (!config.key) {
+                showMessage('Карта не настроена: в .env не задан ключ 2ГИС (DGIS_MAP_KEY или DGIS_API_KEY).');
+                return;
+            }
+            step = 'скрипт mapgl.2gis.com';
+            await loadMapgl();
+            step = 'создание карты';
+            const geo = (typeof currentGeo !== 'undefined' && currentGeo && currentGeo.lat != null)
+                ? [currentGeo.lon, currentGeo.lat] : config.center;
+            map = new mapgl.Map('mapContainer', { center: geo, zoom: config.zoom, key: config.key });
+            step = 'обработчик клика';
+            map.on('click', (e) => onMapClick(e.lngLat));
+            showMessage('');
+        } catch (e) {
+            console.error('Карта: ошибка на шаге «' + step + '»:', e);
+            const hints = {
+                'скрипт mapgl.2gis.com': 'Браузер не смог загрузить https://mapgl.2gis.com/api/js/v1. Проверьте интернет, блокировщик рекламы и доступ к этому адресу (откройте его в новой вкладке: должен показаться программный код).',
+                'создание карты': 'Скрипт загружен, но карта не создалась. Проверьте ключ в .env и права ключа на MapGL JS API.'
+            };
+            showMessage('Не удалось открыть карту на шаге «' + step + '»: ' + (e && e.message ? e.message : e) + '. ' + (hints[step] || ''));
+            map = null;
+        } finally {
+            loading = false;
+        }
+    }
+
+    toggleBtn.addEventListener('click', () => {
+        const open = panel.style.display === 'none';
+        panel.style.display = open ? 'block' : 'none';
+        if (open) initMap();
+    });
+})();

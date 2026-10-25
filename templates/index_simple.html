@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
     <title>MCC AI Agent | Поиск по 2GIS</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script>
+        // Тема применяется до отрисовки страницы, чтобы не было мигания
+        (function () {
+            var theme = 'dark';
+            try { theme = localStorage.getItem('theme') === 'light' ? 'light' : 'dark'; } catch (e) {}
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
 </head>
 <body>
     <!-- Новая анимация нейронной сети на Canvas (фон) -->
@@ -168,6 +176,14 @@
                 <button class="corner-button" id="openInstructionBtn">
                     <span>📋</span> Инструкция
                 </button>
+                <button class="theme-toggle" id="themeToggle" type="button" role="switch" aria-checked="false" aria-label="Переключить тему" title="Светлая / тёмная тема">
+                    <span class="tt-stars"><span></span><span></span><span></span></span>
+                    <span class="tt-clouds"><span></span><span></span></span>
+                    <span class="tt-thumb">
+                        <svg class="tt-moon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+                        <svg class="tt-sun" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></g></svg>
+                    </span>
+                </button>
             </div>
             <!-- Хедер -->
             <header class="header">
@@ -188,6 +204,17 @@
                 <div class="form-group">
                     <label>📍 Адрес торговой точки</label>
                     <input type="text" class="liquid-input" id="address" placeholder="Например: Владивосток, Калинина 8" value="Владивосток, Калинина 8">
+                </div>
+
+                <div class="form-group">
+                    <button type="button" class="recommendations-button" id="mapToggleBtn">
+                        <span>🗺️</span> Выбрать на карте
+                    </button>
+                    <div id="mapPanel" style="display:none; margin-top:12px;">
+                        <div style="font-size:13px; color:var(--fg-medium); margin-bottom:8px;">Кликните по зданию или торговой точке на карте.</div>
+                        <div id="mapContainer" style="width:100%; height:360px; border-radius:16px; overflow:hidden; background:var(--surface-soft);"></div>
+                        <div id="mapResults" style="margin-top:10px;"></div>
+                    </div>
                 </div>
 
                 <button class="ios-button" id="searchBtn">
@@ -213,6 +240,7 @@
         const ctx = canvas.getContext('2d');
         let width, height;
         const numPoints = 35;
+        let neuralRGB = document.documentElement.getAttribute('data-theme') === 'light' ? '30, 140, 60' : '85, 204, 85';
         const points = [];
         const maxDist = 150;
 
@@ -245,9 +273,9 @@
                 const alpha = 0.7 + 0.3 * Math.sin(this.phase);
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, r, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(85, 204, 85, ${alpha})`;
+                ctx.fillStyle = `rgba(${neuralRGB}, ${alpha})`;
                 ctx.fill();
-                ctx.shadowColor = '#55cc55';
+                ctx.shadowColor = `rgb(${neuralRGB})`;
                 ctx.shadowBlur = 8;
                 ctx.fill();
                 ctx.shadowBlur = 0;
@@ -267,7 +295,7 @@
                         ctx.beginPath();
                         ctx.moveTo(points[i].x, points[i].y);
                         ctx.lineTo(points[j].x, points[j].y);
-                        ctx.strokeStyle = `rgba(85, 204, 85, ${alpha})`;
+                        ctx.strokeStyle = `rgba(${neuralRGB}, ${alpha})`;
                         ctx.lineWidth = 1;
                         ctx.stroke();
                     }
@@ -282,6 +310,19 @@
             requestAnimationFrame(animate);
         }
         animate();
+
+        // Переключатель темы
+        const themeToggle = document.getElementById('themeToggle');
+        function applyTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            themeToggle.setAttribute('aria-checked', theme === 'light' ? 'true' : 'false');
+            neuralRGB = theme === 'light' ? '30, 140, 60' : '85, 204, 85';
+            try { localStorage.setItem('theme', theme); } catch (e) {}
+        }
+        themeToggle.addEventListener('click', () => {
+            applyTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light');
+        });
+        themeToggle.setAttribute('aria-checked', document.documentElement.getAttribute('data-theme') === 'light' ? 'true' : 'false');
     </script>
 </body>
 </html>
