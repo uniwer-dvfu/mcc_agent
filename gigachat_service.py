@@ -11,6 +11,8 @@ logger = logging.getLogger(__name__)
 GIGACHAT_CREDENTIALS = os.getenv('GIGACHAT_CREDENTIALS', '')
 GIGACHAT_SCOPE = os.getenv('GIGACHAT_SCOPE', 'GIGACHAT_API_PERS')
 GIGACHAT_VERIFY_SSL = os.getenv('GIGACHAT_VERIFY_SSL_CERTS', 'True').lower() == 'true'
+# Новые версии SDK требуют явно указать модель (GigaChat-2, GigaChat-2-Pro, GigaChat-2-Max, GigaChat-3-Ultra)
+GIGACHAT_MODEL = os.getenv('GIGACHAT_MODEL', 'GigaChat-2')
 
 
 def get_gigachat_client():
@@ -25,9 +27,10 @@ def get_gigachat_client():
         client = GigaChat(
             credentials=GIGACHAT_CREDENTIALS,
             scope=GIGACHAT_SCOPE,
-            verify_ssl_certs=GIGACHAT_VERIFY_SSL
+            verify_ssl_certs=GIGACHAT_VERIFY_SSL,
+            model=GIGACHAT_MODEL
         )
-        logger.info("✅ GigaChat клиент успешно создан")
+        logger.info(f"✅ GigaChat клиент успешно создан (модель: {GIGACHAT_MODEL})")
         return client
     except Exception as e:
         logger.error(f"❌ Ошибка инициализации GigaChat: {e}")
