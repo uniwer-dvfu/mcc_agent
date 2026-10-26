@@ -27,7 +27,7 @@ fileInput.addEventListener('change', function() {
     const files = Array.from(this.files);
     if (files.length > 0) {
         fileList.innerHTML = files.map(file =>
-            `<div class="file-item">📎 ${file.name} (${(file.size / 1024).toFixed(1)} KB)</div>`
+            `<div class="file-item">${file.name} (${(file.size / 1024).toFixed(1)} KB)</div>`
         ).join('');
     } else {
         fileList.innerHTML = '';
@@ -85,39 +85,39 @@ submitFeedback.addEventListener('click', async () => {
     const files = fileInput.files;
 
     if (!name) {
-        feedbackStatus.innerHTML = '<div style="color:var(--danger-text);">❌ Укажите ваше имя</div>';
+        feedbackStatus.innerHTML = '<div style="color:var(--danger-text);">Укажите ваше имя</div>';
         return;
     }
 
     if (!email || !email.includes('@') || !email.includes('.')) {
-        feedbackStatus.innerHTML = '<div style="color:var(--danger-text);">❌ Укажите корректный email</div>';
+        feedbackStatus.innerHTML = '<div style="color:var(--danger-text);">Укажите корректный email</div>';
         return;
     }
 
     // Валидация табельного номера (7 цифр)
     if (!badgeNumber) {
-        feedbackStatus.innerHTML = '<div style="color:var(--danger-text);">❌ Укажите табельный номер (7 цифр)</div>';
+        feedbackStatus.innerHTML = '<div style="color:var(--danger-text);">Укажите табельный номер (7 цифр)</div>';
         return;
     }
 
     if (!/^\d{7}$/.test(badgeNumber)) {
-        feedbackStatus.innerHTML = '<div style="color:var(--danger-text);">❌ Табельный номер должен состоять из 7 цифр</div>';
+        feedbackStatus.innerHTML = '<div style="color:var(--danger-text);">Табельный номер должен состоять из 7 цифр</div>';
         return;
     }
 
     if (!message || message.length < 10) {
-        feedbackStatus.innerHTML = '<div style="color:var(--danger-text);">❌ Сообщение должно содержать минимум 10 символов</div>';
+        feedbackStatus.innerHTML = '<div style="color:var(--danger-text);">Сообщение должно содержать минимум 10 символов</div>';
         return;
     }
 
     // Проверка на наличие прикреплённых файлов
     if (files.length === 0) {
-        feedbackStatus.innerHTML = '<div style="color:var(--danger-text);">❌ Прикрепите файлы (терминальный чек, фото вывески и т.д.)</div>';
+        feedbackStatus.innerHTML = '<div style="color:var(--danger-text);">Прикрепите файлы (терминальный чек, фото вывески и т.д.)</div>';
         return;
     }
 
     submitFeedback.disabled = true;
-    feedbackStatus.innerHTML = '<div style="color:var(--accent-text);">⏳ Отправка...</div>';
+    feedbackStatus.innerHTML = '<div style="color:var(--accent-text);">Отправка...</div>';
 
     const formData = new FormData();
     formData.append('name', name);
@@ -138,15 +138,15 @@ submitFeedback.addEventListener('click', async () => {
         const data = await response.json();
 
         if (data.success) {
-            feedbackStatus.innerHTML = `<div style="color:var(--accent-text);">✅ ${data.message}</div>`;
+            feedbackStatus.innerHTML = `<div style="color:var(--accent-text);">${data.message}</div>`;
             setTimeout(() => {
                 closeFeedbackModal();
             }, 3000);
         } else {
-            feedbackStatus.innerHTML = `<div style="color:var(--danger-text);">❌ ${data.error}</div>`;
+            feedbackStatus.innerHTML = `<div style="color:var(--danger-text);">${data.error}</div>`;
         }
     } catch (error) {
-        feedbackStatus.innerHTML = '<div style="color:var(--danger-text);">❌ Ошибка при отправке</div>';
+        feedbackStatus.innerHTML = '<div style="color:var(--danger-text);">Ошибка при отправке</div>';
     } finally {
         submitFeedback.disabled = false;
     }
@@ -182,7 +182,7 @@ function showToast(message, isError = false) {
 
 async function reportWrongMCC() {
     if (!currentMCCData) {
-        showToast('❌ Нет данных о текущем МСС-коде', true);
+        showToast('Нет данных о текущем МСС-коде', true);
         return;
     }
 
@@ -200,7 +200,7 @@ async function reportWrongMCC() {
     const btn = document.getElementById('reportWrongMccBtn');
     if (!btn) return;
     const originalText = btn.innerHTML;
-    btn.innerHTML = '<span>⏳</span> Отправка...';
+    btn.innerHTML = 'Отправка...';
     btn.disabled = true;
 
     try {
@@ -215,12 +215,12 @@ async function reportWrongMCC() {
         const data = await response.json();
 
         if (data.success) {
-            showToast('✅ Данная ошибка зафиксирована и отправлена! Благодарим за обратную связь');
+            showToast('Данная ошибка зафиксирована и отправлена! Благодарим за обратную связь');
         } else {
-            showToast(`❌ Ошибка: ${data.error || 'Не удалось отправить'}`, true);
+            showToast(`Ошибка: ${data.error || 'Не удалось отправить'}`, true);
         }
     } catch (error) {
-        showToast('❌ Ошибка при отправке. Попробуйте позже.', true);
+        showToast('Ошибка при отправке. Попробуйте позже.', true);
     } finally {
         btn.innerHTML = originalText;
         btn.disabled = false;
@@ -229,17 +229,17 @@ async function reportWrongMCC() {
 
 function showResult(data) {
     if (!data.success) {
-        let errorHtml = `<div class="error-message">❌ ${data.error}</div>`;
+        let errorHtml = `<div class="error-message">${data.error}</div>`;
 
         if (data.building) {
             errorHtml += `
                 <div class="result-card">
                     <div class="building-info">
                         <div class="building-name">
-                            <span>🏢</span> ${data.building.name || 'Здание'}
+                            ${data.building.name || 'Здание'}
                         </div>
                         <div class="building-address">
-                            <span>📍</span> ${data.building.address}
+                            ${data.building.address}
                         </div>
                         ${data.building.purpose ? `<div class="building-purpose">${data.building.purpose}</div>` : ''}
                     </div>
@@ -307,20 +307,20 @@ function showResult(data) {
         `;
     }
 
-    let mccDescription = mcc.description ? `<div class="mcc-description">📋 ${mcc.description}</div>` : '';
+    let mccDescription = mcc.description ? `<div class="mcc-description">${mcc.description}</div>` : '';
 
     // Блоки GigaChat (вынесены в отдельную переменную)
     // Справочная информация: бренд, график, ближайшие объекты
     let extraHtml = '';
     const extra = data.extra || {};
     const extraRows = [];
-    if (extra.brand) extraRows.push(`<div>🏷️ <b>Бренд / сеть:</b> ${escapeHtml(extra.brand)}</div>`);
-    if (extra.schedule) extraRows.push(`<div>🕒 <b>График:</b> ${escapeHtml(extra.schedule)}</div>`);
+    if (extra.brand) extraRows.push(`<div><b>Бренд / сеть:</b> ${escapeHtml(extra.brand)}</div>`);
+    if (extra.schedule) extraRows.push(`<div><b>График:</b> ${escapeHtml(extra.schedule)}</div>`);
     if (extra.nearby && extra.nearby.length > 0) {
         const items = extra.nearby.map(n =>
             `<li>${escapeHtml(n.name)}${n.category ? ' — ' + escapeHtml(n.category) : ''}, ${n.distance_m} м</li>`
         ).join('');
-        extraRows.push(`<div style="margin-top:6px;">📍 <b>Рядом (OpenStreetMap):</b><ul style="margin:4px 0 0 18px;">${items}</ul></div>`);
+        extraRows.push(`<div style="margin-top:6px;"><b>Рядом (OpenStreetMap):</b><ul style="margin:4px 0 0 18px;">${items}</ul></div>`);
     }
     if (extraRows.length > 0) {
         extraHtml = `
@@ -336,7 +336,7 @@ function showResult(data) {
         gigachatHtml += `
             <div style="margin-top: 15px; padding: 15px; background: rgba(60,200,100,0.1); border-radius: 16px; border-left: 4px solid #4CAF50; text-align: left;">
                 <div style="font-weight: 600; color:var(--accent-text); margin-bottom: 8px;">
-                    🤖 Объяснение ИИ (GigaChat)
+                    Объяснение ИИ (GigaChat)
                 </div>
                 <p style="color:var(--fg-strong); font-size: 14px; line-height: 1.5;">
                     ${escapeHtml(mcc.gigachat_explanation)}
@@ -348,7 +348,7 @@ function showResult(data) {
         gigachatHtml += `
             <div style="margin-top: 15px; padding: 15px; background: rgba(30,100,50,0.3); border-radius: 16px; text-align: left;">
                 <div style="font-weight: 600; color:var(--accent-text); margin-bottom: 8px;">
-                    💡 Рекомендованные продукты (GigaChat)
+                    Рекомендованные продукты (GigaChat)
                 </div>
                 <div style="display: flex; flex-wrap: wrap; gap: 8px;">
                     ${mcc.gigachat_products.map(p =>
@@ -362,16 +362,15 @@ function showResult(data) {
     resultContainer.innerHTML = `
         <div class="result-card">
             <div class="result-header">
-                <div class="result-icon">🎯</div>
                 <h3>Результат поиска</h3>
             </div>
 
             <div class="building-info">
                 <div class="building-name">
-                    <span>🏢</span> ${building.name || 'Здание'}
+                    ${building.name || 'Здание'}
                 </div>
                 <div class="building-address">
-                    <span>📍</span> ${building.address}
+                    ${building.address}
                 </div>
                 ${building.purpose ? `<div class="building-purpose">${building.purpose}</div>` : ''}
             </div>
@@ -400,16 +399,16 @@ function showResult(data) {
                 ${gigachatHtml}
                 <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-top: 20px;">
                     <button class="wrong-mcc-button" id="reportWrongMccBtn" onclick="reportWrongMCC()">
-                        <span>🚫</span> Неверный МСС
+                        Неверный МСС
                     </button>
                     <button class="recommendations-button" id="recommendationsBtn" onclick="showRecommendations()">
-                        <span>📊</span> Рекомендации по продажам
+                        Рекомендации по продажам
                     </button>
                     <button class="recommendations-button" id="companyInfoBtn" onclick="showCompanyInfo()">
-                        <span>🏛️</span> Информация из DaData
+                        Информация из DaData
                     </button>
                     <button class="recommendations-button" id="partnersBtn" onclick="showPartners()">
-                        <span>🤝</span> Партнёры рядом (500 м)
+                        Партнёры рядом (500 м)
                     </button>
                 </div>
             </div>
@@ -446,7 +445,7 @@ searchBtn.addEventListener('click', async () => {
 
     } catch (error) {
         resultContainer.innerHTML = `
-            <div class="error-message">❌ Ошибка при поиске: ${error.message}</div>
+            <div class="error-message">Ошибка при поиске: ${error.message}</div>
         `;
     } finally {
         searchBtn.disabled = false;
@@ -532,52 +531,52 @@ function getSalesRecommendations(mccCode, mccName, businessName) {
     // 1. Проверка POS-кредитования
     if (POS_CREDIT_ALLOWED.has(mccCode)) {
         recommendations.hasPosCredit = true;
-        recommendations.posCreditMessage = `✅ POS-кредитование доступно для МСС-кода ${mccCode} (${mccName}).
+        recommendations.posCreditMessage = `POS-кредитование доступно для МСС-кода ${mccCode} (${mccName}).
         \nРекомендуем предложить клиенту оформление покупки в рассрочку или кредит прямо на месте.
-        \n🎯 Выгода: повышение среднего чека до 40%, увеличение конверсии в продажу.`;
+        \nВыгода: повышение среднего чека до 40%, увеличение конверсии в продажу.`;
     } else if (POS_CREDIT_FORBIDDEN.has(mccCode)) {
         recommendations.hasPosCredit = false;
-        recommendations.posCreditMessage = `❌ POS-кредитование НЕ доступно для МСС-кода ${mccCode} (${mccName}).
+        recommendations.posCreditMessage = `POS-кредитование НЕ доступно для МСС-кода ${mccCode} (${mccName}).
         \nДанный вид деятельности не подходит для рассрочки/кредита на месте.`;
     } else {
         recommendations.hasPosCredit = false;
-        recommendations.posCreditMessage = `⚠️ POS-кредитование для МСС-кода ${mccCode} (${mccName}) требует дополнительной проверки.
+        recommendations.posCreditMessage = `POS-кредитование для МСС-кода ${mccCode} (${mccName}) требует дополнительной проверки.
         \nОбратитесь в отдел риск-менеджмента для уточнения возможности подключения.`;
     }
 
     // 2. Проверка СберЧаевых
     if (SBERTIPS_ALLOWED.has(mccCode)) {
         recommendations.hasSberTips = true;
-        recommendations.sberTipsMessage = `💬 СберЧаевые рекомендуются для МСС-кода ${mccCode} (${mccName})!
+        recommendations.sberTipsMessage = `СберЧаевые рекомендуются для МСС-кода ${mccCode} (${mccName})!
         \nПредложите клиенту подключение сервиса для приёма чаевых через СБП.
-        \n🎯 Преимущества: безналичные чаевые, лёгкое подключение, прозрачная отчётность.`;
+        \nПреимущества: безналичные чаевые, лёгкое подключение, прозрачная отчётность.`;
     } else if (SBERTIPS_FORBIDDEN.has(mccCode)) {
         recommendations.hasSberTips = false;
-        recommendations.sberTipsMessage = `❌ СберЧаевые НЕ рекомендуются для МСС-кода ${mccCode} (${mccName}).`;
+        recommendations.sberTipsMessage = `СберЧаевые НЕ рекомендуются для МСС-кода ${mccCode} (${mccName}).`;
     } else {
         recommendations.hasSberTips = false;
-        recommendations.sberTipsMessage = `🤔 Для МСС-кода ${mccCode} (${mccName}) возможность подключения СберЧаевых требует уточнения.`;
+        recommendations.sberTipsMessage = `Для МСС-кода ${mccCode} (${mccName}) возможность подключения СберЧаевых требует уточнения.`;
     }
 
     // 3. Общая рекомендация на основе типа бизнеса
     if (POS_CREDIT_ALLOWED.has(mccCode) && SBERTIPS_ALLOWED.has(mccCode)) {
-        recommendations.generalMessage = `🏆 Универсальное предложение: клиенту подходят оба продукта!
-        \n1️⃣ POS-кредитование — для увеличения среднего чека
-        \n2️⃣ СберЧаевые — для дополнительного дохода от клиентов
+        recommendations.generalMessage = `Универсальное предложение: клиенту подходят оба продукта!
+        \n1. POS-кредитование — для увеличения среднего чека
+        \n2. СберЧаевые — для дополнительного дохода от клиентов
 
-        \n📞 Рекомендуем провести встречу и презентовать оба решения.`;
+        \nРекомендуем провести встречу и презентовать оба решения.`;
     } else if (POS_CREDIT_ALLOWED.has(mccCode)) {
-        recommendations.generalMessage = `📈 Ключевая рекомендация: предложите клиенту POS-кредитование.
+        recommendations.generalMessage = `Ключевая рекомендация: предложите клиенту POS-кредитование.
         \nЭто идеальный продукт для бизнеса с МСС-кодом ${mccCode}.
-        \n🎯 Продающий скрипт: «Увеличьте свои продажи — предложите клиентам рассрочку прямо на кассе».`;
+        \nПродающий скрипт: «Увеличьте свои продажи — предложите клиентам рассрочку прямо на кассе».`;
     } else if (SBERTIPS_ALLOWED.has(mccCode)) {
-        recommendations.generalMessage = `💡 Ключевая рекомендация: предложите клиенту СберЧаевые.
+        recommendations.generalMessage = `Ключевая рекомендация: предложите клиенту СберЧаевые.
         \nЭтот продукт идеально подходит для вашего типа бизнеса.
-        \n🎯 Продающий скрипт: «Позвольте клиентам благодарить вас рублём — подключите безналичные чаевые».`;
+        \nПродающий скрипт: «Позвольте клиентам благодарить вас рублём — подключите безналичные чаевые».`;
     } else {
-        recommendations.generalMessage = `🤝 Рекомендуем провести дополнительный анализ потребностей клиента.
+        recommendations.generalMessage = `Рекомендуем провести дополнительный анализ потребностей клиента.
         \nМСС-код ${mccCode} (${mccName}) не входит в стандартные продуктовые матрицы.
-        \n🎯 Предложите базовый эквайринг и дополнительные сервисы от Сбера.`;
+        \nПредложите базовый эквайринг и дополнительные сервисы от Сбера.`;
     }
 
     return recommendations;
@@ -598,9 +597,9 @@ function showRecommendationsModal(recommendations, businessName, mccCode, mccNam
         <div class="modal-content" style="max-width: 550px;">
             <div class="modal-header">
                 <h2>
-                    <span>📊</span> Рекомендации по продажам
+                    Рекомендации по продажам
                 </h2>
-                <div class="modal-close" onclick="document.getElementById('recommendationsModal').remove()">✕</div>
+                <div class="modal-close" onclick="document.getElementById('recommendationsModal').remove()">×</div>
             </div>
 
             <div style="margin-bottom: 10px; padding: 12px; background: rgba(60,200,100,0.15); border-radius: 16px;">
@@ -612,7 +611,7 @@ function showRecommendationsModal(recommendations, businessName, mccCode, mccNam
             <div style="margin-bottom: 20px;">
                 <div style="background: rgba(60,200,100,0.1); border-radius: 16px; padding: 15px; margin-bottom: 12px;">
                     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                        <span style="font-size: 24px;">💰</span>
+
                         <span style="font-weight: 700; color:var(--accent-text);">POS-кредитование</span>
                     </div>
                     <p style="color:var(--fg-strong); font-size: 14px; line-height: 1.5; white-space: pre-line;">${recommendations.posCreditMessage}</p>
@@ -620,7 +619,7 @@ function showRecommendationsModal(recommendations, businessName, mccCode, mccNam
 
                 <div style="background: rgba(60,200,100,0.1); border-radius: 16px; padding: 15px; margin-bottom: 12px;">
                     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                        <span style="font-size: 24px;">💬</span>
+
                         <span style="font-weight: 700; color:var(--accent-text);">СберЧаевые</span>
                     </div>
                     <p style="color:var(--fg-strong); font-size: 14px; line-height: 1.5; white-space: pre-line;">${recommendations.sberTipsMessage}</p>
@@ -628,7 +627,7 @@ function showRecommendationsModal(recommendations, businessName, mccCode, mccNam
 
                 <div style="background: linear-gradient(135deg, rgba(30,100,50,0.3), rgba(20,60,40,0.3)); border-radius: 16px; padding: 15px; border-left: 4px solid #4CAF50;">
                     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                        <span style="font-size: 24px;">🎯</span>
+
                         <span style="font-weight: 700; color:var(--accent-text);">Продажная рекомендация</span>
                     </div>
                     <p style="color:var(--fg-strong); font-size: 14px; line-height: 1.5; white-space: pre-line;">${recommendations.generalMessage}</p>
@@ -637,7 +636,7 @@ function showRecommendationsModal(recommendations, businessName, mccCode, mccNam
 
             <!-- Убрана кнопка "Закрыть", осталась только "Запросить подключение" -->
             <button class="ios-button" onclick="window.open('https://www.sberbank.ru/ru/small_business/acquiring', '_blank')" style="width: 100%; background: rgba(30,100,50,0.8);">
-                📞 Запросить подключение
+                Запросить подключение
             </button>
         </div>
     `;
@@ -654,13 +653,13 @@ function showRecommendationsModal(recommendations, businessName, mccCode, mccNam
 // Функция для обработки нажатия на кнопку рекомендаций
 async function showRecommendations() {
     if (!currentMCCData) {
-        showToast('❌ Нет данных о текущем МСС-коде', true);
+        showToast('Нет данных о текущем МСС-коде', true);
         return;
     }
 
     const { mcc_code, mcc_name, org_name } = currentMCCData;
 
-    showToast('📊 Загружаем рекомендации...');
+    showToast('Загружаем рекомендации...');
 
     setTimeout(() => {
         const recommendations = getSalesRecommendations(mcc_code, mcc_name, org_name);
@@ -671,7 +670,7 @@ async function showRecommendations() {
 // Поиск перспективных партнёров в радиусе 500 м
 async function showPartners(refresh = false) {
     if (!currentMCCData || !currentGeo) {
-        showToast('❌ Сначала найдите торговую точку', true);
+        showToast('Сначала найдите торговую точку', true);
         return;
     }
     const existing = document.getElementById('partnersModal');
@@ -684,10 +683,10 @@ async function showPartners(refresh = false) {
     modal.innerHTML = `
         <div class="modal-content" style="max-width: 600px;">
             <div class="modal-header">
-                <h2><span>🤝</span> Партнёры рядом</h2>
-                <div class="modal-close" onclick="document.getElementById('partnersModal').remove()">✕</div>
+                <h2>Партнёры рядом</h2>
+                <div class="modal-close" onclick="document.getElementById('partnersModal').remove()">×</div>
             </div>
-            <div id="partnersBody" style="color:var(--fg-strong); font-size:14px;">⏳ Ищем организации в радиусе 500 м и анализируем их…</div>
+            <div id="partnersBody" style="color:var(--fg-strong); font-size:14px;">Ищем организации в радиусе 500 м и анализируем их…</div>
         </div>
     `;
     document.body.appendChild(modal);
@@ -716,7 +715,7 @@ async function showPartners(refresh = false) {
         const cards = result.partners.map((p, i) => `
             <div style="padding:12px 14px; margin-bottom:10px; background:rgba(60,200,100,0.12); border-radius:14px; border-left:3px solid #4CAF50;">
                 <div style="font-weight:700; color:var(--accent-text); font-size:15px;">${i + 1}. ${escapeHtml(p.name)}</div>
-                <div style="font-size:12px; color:var(--fg-faint); margin-top:2px;">📍 ${escapeHtml(p.address)} · ${p.distance_m} м</div>
+                <div style="font-size:12px; color:var(--fg-faint); margin-top:2px;">${escapeHtml(p.address)} · ${p.distance_m} м</div>
                 <div style="font-size:12px; color:var(--fg-medium); margin-top:4px;">МСС ${escapeHtml(p.mcc_code)} — ${escapeHtml(p.mcc_name)}</div>
                 <div style="margin-top:6px;">${(p.products || []).map(x => `<span class="rubric-tag">${escapeHtml(x)}</span>`).join('')}</div>
                 <p style="margin:8px 0 0; font-size:13px; line-height:1.5; color:var(--fg-strong);">${escapeHtml(p.reason)}</p>
@@ -750,7 +749,7 @@ function showCompanyInfo() {
             return `
             <div style="padding:10px 12px; margin-bottom:8px; background:${accent ? 'rgba(60,200,100,0.18)' : 'var(--surface-soft)'}; border-radius:12px; ${accent ? 'border-left:3px solid #4CAF50;' : ''}">
                 <div style="font-weight:600; color:${accent ? 'var(--accent-text)' : 'var(--fg-strong)'}; font-size:14px;">${escapeHtml(e.name)}${e.branch ? ' <span style="font-weight:400; color:var(--fg-faint);">(филиал)</span>' : ''}</div>
-                ${e.address ? `<div style="font-size:12px; color:var(--fg-faint); margin-top:2px;">📍 ${escapeHtml(e.address)}</div>` : ''}
+                ${e.address ? `<div style="font-size:12px; color:var(--fg-faint); margin-top:2px;">${escapeHtml(e.address)}</div>` : ''}
                 ${meta ? `<div style="font-size:13px; color:var(--fg-strong); margin-top:4px;">${meta}</div>` : ''}
             </div>`;
         };
@@ -780,8 +779,8 @@ function showCompanyInfo() {
     modal.innerHTML = `
         <div class="modal-content" style="max-width: 560px;">
             <div class="modal-header">
-                <h2><span>🏛️</span> Информация из DaData</h2>
-                <div class="modal-close" onclick="document.getElementById('companyInfoModal').remove()">✕</div>
+                <h2>Информация из DaData</h2>
+                <div class="modal-close" onclick="document.getElementById('companyInfoModal').remove()">×</div>
             </div>
             <div style="margin-bottom: 15px; padding: 12px; background: rgba(60,200,100,0.15); border-radius: 16px;">
                 <div style="font-size: 14px; color:var(--fg-medium);">Торговая точка:</div>
@@ -839,14 +838,14 @@ function escapeHtml(str) {
     function selectOrganization(org) {
         orgNameInput.value = org.name;
         addressInput.value = org.address;
-        resultsBox.innerHTML = `<div style="font-size:13px; color:var(--accent-text);">✅ Выбрано: ${escapeHtml(org.name)}, ${escapeHtml(org.address)}. Нажмите «Найти и определить MCC».</div>`;
+        resultsBox.innerHTML = `<div style="font-size:13px; color:var(--accent-text);">Выбрано: ${escapeHtml(org.name)}, ${escapeHtml(org.address)}. Нажмите «Найти и определить MCC».</div>`;
     }
 
     async function onMapClick(lngLat) {
         const [lon, lat] = lngLat;
         if (marker) marker.destroy();
         marker = new mapgl.Marker(map, { coordinates: [lon, lat] });
-        showMessage('⏳ Ищем организации рядом…');
+        showMessage('Ищем организации рядом…');
         try {
             const response = await fetch('/organizations_at_point', {
                 method: 'POST',
@@ -872,7 +871,7 @@ function escapeHtml(str) {
     async function initMap() {
         if (map || loading) return;
         loading = true;
-        showMessage('⏳ Загружаем карту…');
+        showMessage('Загружаем карту…');
         let step = 'настройки карты';
         try {
             const configResponse = await fetch('/map_config');
@@ -909,4 +908,30 @@ function escapeHtml(str) {
         panel.style.display = open ? 'block' : 'none';
         if (open) initMap();
     });
+})();
+
+
+// Страховка: эмодзи из внешних данных (ответы GigaChat, названия из 2ГИС и др.) на странице не показываются
+(function () {
+    if (window.__emojiGuard) return;
+    window.__emojiGuard = true;
+    const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{23E9}-\u{23FF}\u{2139}\u{203C}\uFE0F\u200D\u20E3]/gu;
+    function clean(node) {
+        if (node.nodeType === Node.TEXT_NODE) {
+            if (EMOJI.test(node.nodeValue)) {
+                EMOJI.lastIndex = 0;
+                node.nodeValue = node.nodeValue.replace(EMOJI, '').replace(/^\s{2,}/, ' ');
+            }
+            EMOJI.lastIndex = 0;
+        } else if (node.nodeType === Node.ELEMENT_NODE && !['SCRIPT', 'STYLE', 'TEXTAREA'].includes(node.tagName)) {
+            node.childNodes.forEach(clean);
+        }
+    }
+    new MutationObserver((records) => {
+        records.forEach(r => {
+            if (r.type === 'characterData') clean(r.target);
+            r.addedNodes.forEach(clean);
+        });
+    }).observe(document.body, { childList: true, subtree: true, characterData: true });
+    clean(document.body);
 })();
